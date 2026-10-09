@@ -11,11 +11,13 @@ const state = window.five = { timings: { pageLoad: performance.now() }, events: 
   console: [], consoleErrors: 0, scriptExceptions: 0, glErrors: 0,
   inputEvents: 0, inputDropped: 0, audioFrames: 0, interactive: false, rendererRoute };
 const telemetry = startTelemetry(state);
-// fpsui: F3, caught on window before input.js and Chrome's find-next, shows or hides the performance readout (perf-overlay.js; not even fetched otherwise).
+// fpsui: F3, caught on window before input.js and Chrome's find-next, cycles the performance readout compact, detailed, hidden (perf-overlay.js; not even fetched otherwise).
 addEventListener('keydown', event => {
   if (event.key !== 'F3' || event.repeat) return;
   event.preventDefault(); event.stopImmediatePropagation();
-  if (globalThis.__perfOverlay) { globalThis.__perfOverlay.stop(); delete globalThis.__perfOverlay; return; }
+  const overlay = globalThis.__perfOverlay;
+  if (overlay?.mode === 'compact') return overlay.setMode('detail');
+  if (overlay) { overlay.stop(); delete globalThis.__perfOverlay; return; }
   import('./perf-overlay.js').then(m => m.startPerfOverlay()).catch(() => {});
 }, true);
 const mb = bytes => (bytes / 1e6).toFixed(1) + ' MB';
@@ -444,7 +446,7 @@ function newDownloader() {
     } else if (data.type === 'progress') {
       if (data.priority === 'boot' && !state.boot) {
         barDownload(data);
-      } // onebar: music/voices continue silently after boot (no second bar); #background only shows a pause + Retry.
+      } else if (data.priority === 'background') state.music = Math.floor(100 * data.completed / data.total); // onebar: music/voices continue silently after boot (no second bar); #background only shows a pause + Retry.
     } else if (data.type === 'boot-ready') {
       state.boot = data.metrics; state.timings.bootReady = performance.now(); state.manifest = data.manifest;
       // Show the pending sound transfer before its first network progress event.
@@ -460,6 +462,7 @@ function newDownloader() {
     } else if (data.type === 'complete') {
       state.result = data.metrics; downloading = false; $('background').hidden = true; downloader.terminate();
       engine?.lateIwds?.(); // music/voice IWDs that landed after the engine indexed main/
+      state.music = 100;
     } else if (data.type === 'error') downloadError(data.message, data.name);
   };
 }
