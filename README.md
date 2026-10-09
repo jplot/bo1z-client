@@ -13,7 +13,7 @@ Puis ouvrir http://127.0.0.1:8484/bo1z dans Chrome.
 - `cache/` garde chaque réponse de vel.gg telle quelle, sans jamais la rafraîchir. Supprimer le dossier pour reprendre la version en ligne.
 - Un fichier posé à `overrides/<chemin>` remplace `/<chemin>`, par exemple `overrides/bo1z/artifacts/KisakBlack-web.wasm`.
 - La télémétrie du site est coupée (404 sur `/telemetry`).
-- `ws://127.0.0.1:<PORT>/kbnet` relie la page au port UDP `NET_PORT` (28960 par défaut), pour l'instant limité à `127.0.0.1` : deux relais sur le même Mac, par exemple `PORT=8485 NET_PORT=28961 node proxy.mjs` pour le second joueur.
+- `ws://127.0.0.1:<PORT>/kbnet` relie la page au port UDP `NET_PORT` (28960 par défaut), ouvert sur le réseau local : le relais affiche au démarrage les adresses à donner aux autres joueurs. Deux relais sur le même Mac : `PORT=8485 NET_PORT=28961 node proxy.mjs` pour le second joueur.
 
 `npm test` lance deux relais et fait passer un datagramme de l'un à l'autre.
 
