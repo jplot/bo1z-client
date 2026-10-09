@@ -118,7 +118,7 @@ await override(`${ARTIFACTS}KisakBlack-web.mjs`, `import * as kbnet from "./kbne
 for (const file of ['kbnet.js', 'ring.js']) await copyFile(path.join(ROOT, 'web', file), path.join(ROOT, 'overrides', ARTIFACTS, file));
 
 const engine = replaceOnce((await cached('/bo1z/engine.js')).toString(), '    state.arguments = args;',
-  "    const kbnetConnect = new URLSearchParams(location.search).get('connect');\n    if (kbnetConnect) args.push('+connect', kbnetConnect);\n    state.arguments = args;", 'arguments du moteur');
+  "    const kbnetConnect = new URLSearchParams(location.search).get('connect');\n    if (kbnetConnect) args.splice(args.indexOf('+devmap'), 2, '+connect', kbnetConnect);\n    state.arguments = args;", 'arguments du moteur');
 await override('/bo1z/engine.js', engine);
 
 console.log(`wasm patché : ${wasm.length} octets, ${IMPORTS.length} imports`);
