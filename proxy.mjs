@@ -77,11 +77,11 @@ const server = http.createServer(async (req, res) => {
       return await serve(req, res, response.statusCode, pick(response.headers), response);
     }
     // Le worker de vel.gg compare Content-Length à la taille attendue des fichiers téléchargés d'un seul bloc.
-    const { meta, body, file, length } = await cached(url, headers);
+    const { meta, body, file, start, length } = await cached(url, headers);
     const range = length !== undefined && !meta.headers['content-encoding'] && byteRange(req.headers.range, length);
     if (!range) return await serve(req, res, meta.status, length === undefined ? meta.headers : { ...meta.headers, 'content-length': length }, body);
     body.destroy();
-    await serve(req, res, 206, { ...meta.headers, 'content-range': `bytes ${range.start}-${range.end}/${length}`, 'content-length': range.end - range.start + 1 }, createReadStream(file, range));
+    await serve(req, res, 206, { ...meta.headers, 'content-range': `bytes ${range.start}-${range.end}/${length}`, 'content-length': range.end - range.start + 1 }, createReadStream(file, { start: start + range.start, end: start + range.end }));
   } catch (error) {
     console.error(req.method, url.pathname + url.search, error.message);
     if (res.headersSent) res.destroy();

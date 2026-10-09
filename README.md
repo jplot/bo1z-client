@@ -10,7 +10,7 @@ node proxy.mjs   # port 8484, ou PORT=...
 
 Puis ouvrir http://127.0.0.1:8484/bo1z dans Chrome.
 
-- `cache/` garde chaque réponse de vel.gg telle quelle, sans jamais la rafraîchir. Supprimer le dossier pour reprendre la version en ligne.
+- `cache/` garde les fichiers de vel.gg en clair, rangés comme le site (une page dans `<chemin>/index.html`), sans jamais les rafraîchir ; le relais y découpe à la volée les morceaux `?part=k` que demande le jeu. Supprimer le dossier pour reprendre la version en ligne.
 - Un fichier posé à `overrides/<chemin>` remplace `/<chemin>`, par exemple `overrides/bo1z/artifacts/KisakBlack-web.wasm`.
 - La télémétrie du site reste sur ce poste : chaque envoi (plantage avec les 300 dernières lignes de la console du moteur, erreurs, fin de session) est ajouté à `telemetry/<PORT>.jsonl`.
 - `ws://127.0.0.1:<PORT>/kbnet` relie la page au port UDP `NET_PORT` (3074 par défaut, le port que le jeu prend quand `connect` n'en précise pas), ouvert sur le réseau local : le relais affiche au démarrage les adresses à donner aux autres joueurs.
@@ -42,13 +42,13 @@ Sans passer par le lobby, tous les joueurs ouvrent la même adresse avec `?room=
 
 ## Jouer sans vel.gg
 
-La branche `assets` contient `cache/` rempli : le site, le moteur et les 10 cartes, 4,7 Go. Elle ne doit vivre que dans un dépôt privé. Dans un clone :
+La branche `assets` contient `cache/` rempli : le site, le moteur et les 10 cartes (5,4 Go dans git, 9 Go sur le disque). Elle ne doit vivre que dans un dépôt privé. Dans un clone :
 
 ```sh
 git worktree add cache assets
 ```
 
-Le relais sert alors tout depuis le disque, pages de salon et reprises par plage comprises, et `node patch/build.mjs` patche le moteur de cette version figée. `node prefetch.mjs` complète `cache/` depuis vel.gg sans retélécharger ce qui y est ; pour passer à une nouvelle version du site, vider `cache/`, relancer `prefetch.mjs` et commiter dans `assets`.
+Le relais sert alors tout depuis le disque, pages de salon et reprises par plage comprises, et `node patch/build.mjs` patche le moteur de cette version figée. `node prefetch.mjs` complète `cache/` depuis vel.gg sans retélécharger ce qui y est, recolle chaque fichier du jeu à partir de ses morceaux et vérifie son SHA-256 contre le manifeste de vel.gg ; pour passer à une nouvelle version du site, vider `cache/`, relancer `prefetch.mjs` et commiter dans `assets`.
 
 GitHub refuse un envoi de plus de 2 Go : la branche se pousse commit par commit (un par carte).
 
