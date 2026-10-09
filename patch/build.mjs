@@ -98,6 +98,11 @@ function patches(module) {
   const loadType = module.bytes.subarray(connect.list[c].at, connect.list[c + 1].end);
   // (20 >> type) & 1 : bits 2 (NA_LOOPBACK) et 4 (NA_IP).
   add(connect.index, { at: connect.list[c].at, end: connect.list[c + 4].at, bytes: [...i32(20), ...loadType, 0x76, ...i32(1), 0x71] });
+
+  // Le serveur se fige quand le client local est en pause et qu'il compte au plus un client connecté (SV_CheckPaused) :
+  // pendant qu'un joueur rejoint, l'hôte qui quitte sa fenêtre laissait le défi sans réponse.
+  const pause = find(module, 'CL_PauseGame(bool)', (_, k) => k === 0, 1);
+  add(pause.index, { at: pause.body.code, end: pause.body.code, bytes: [...i32(0), 0x21, ...leb(0)] });
   return edits;
 }
 
@@ -120,5 +125,15 @@ for (const file of ['kbnet.js', 'ring.js']) await copyFile(path.join(ROOT, 'web'
 const engine = replaceOnce((await cached('/bo1z/engine.js')).toString(), '    state.arguments = args;',
   "    args.splice(args.indexOf('+devmap'), 0, '+set', 'monkeytoy', '0');\n    const kbnetConnect = new URLSearchParams(location.search).get('connect');\n    if (kbnetConnect) args.splice(args.indexOf('+devmap'), 2, '+connect', kbnetConnect);\n    state.arguments = args;", 'arguments du moteur');
 await override('/bo1z/engine.js', engine);
+
+// La console attend le caractère 8 pour effacer, comme WM_CHAR sous Windows ; Cmd+V intercepté bloquait l'événement paste.
+let input = (await cached('/bo1z/input.js')).toString();
+input = replaceOnce(input, "    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) emit({ kind: 'char', char: event.key.codePointAt(0) });\n",
+  "    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) emit({ kind: 'char', char: event.key.codePointAt(0) });\n    else if (event.key === 'Backspace') emit({ kind: 'char', char: 8 });\n", 'effacement');
+input = replaceOnce(input, '    if (key === undefined) return;\n    event.preventDefault();\n',
+  "    if (key === undefined) return;\n    if ((event.metaKey || event.ctrlKey) && event.code === 'KeyV') return;\n    event.preventDefault();\n", 'raccourci coller');
+input = replaceOnce(input, "  on(document, 'keyup', event => {\n",
+  "  on(document, 'paste', event => {\n    if (!active()) return;\n    event.preventDefault();\n    for (const char of event.clipboardData.getData('text')) if (char >= ' ') emit({ kind: 'char', char: char.codePointAt(0) });\n  });\n  on(document, 'keyup', event => {\n", 'coller');
+await override('/bo1z/input.js', input);
 
 console.log(`wasm patché : ${wasm.length} octets, ${IMPORTS.length} imports`);
