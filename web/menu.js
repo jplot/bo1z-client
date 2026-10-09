@@ -155,7 +155,7 @@ function select(map) {
 
 function renderRooms() {
   $('count').textContent = rooms.length || '';
-  if (!rooms.length) return $('rooms').replaceChildren(el('p', 'empty', 'Aucun salon ouvert. Crée le premier, ou rejoins un ami avec son code.'));
+  if (!rooms.length) return $('rooms').replaceChildren(el('div', 'none', '<b>Aucun salon ouvert</b><span>Crée le premier, ou rejoins un ami avec son code.</span>'));
   const list = el('div', 'rlist', '<div class="head"><span></span><span>Salon</span><span>Carte</span><span>Joueurs</span><span>Places</span><span></span></div>');
   list.append(...rooms.map(room => {
     const map = bySlug(room.map);
@@ -184,8 +184,7 @@ function showTab(name) {
   $('tab-solo').setAttribute('aria-selected', String(name === 'solo'));
   $('tab-multi').setAttribute('aria-selected', String(name === 'multi'));
   $('tab-solo').hidden = $('tab-multi').hidden = picking;
-  $('creating').hidden = $('cancel-pick').hidden = $('k-cancel').hidden = !picking;
-  for (const hint of document.querySelectorAll('.k-main')) hint.hidden = picking;
+  $('creating').hidden = $('cancel-pick').hidden = !picking;
   $('pane-solo').hidden = name !== 'solo';
   $('pane-multi').hidden = name !== 'multi';
   $('hell').hidden = name !== 'solo' || picking;
@@ -304,19 +303,7 @@ for (const button of document.querySelectorAll('.views button')) {
   });
 }
 
-document.addEventListener('keydown', event => {
-  if (event.target.matches('input') || $('joincode').open) return;
-  if (event.key === 'Escape' && picking) stopPicking();
-  else if (event.key === '1' && !picking) showTab('solo');
-  else if (event.key === '2' && !picking) showTab('multi');
-  else if (event.key.toLowerCase() === 'e' && !$('hell').hidden) $('hell').click();
-  else if (view === 'list' && !$('pane-solo').hidden && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
-    event.preventDefault();
-    const rows = [...document.querySelectorAll('.solo-list .row:not(.off)')];
-    const k = rows.findIndex(row => row.dataset.slug === selected?.slug), down = event.key === 'ArrowDown';
-    rows[k < 0 ? (down ? 0 : rows.length - 1) : (k + (down ? 1 : rows.length - 1)) % rows.length].focus();
-  }
-});
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && picking) stopPicking(); });
 
 renderMaps();
 rotate();

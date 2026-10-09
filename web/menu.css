@@ -132,10 +132,11 @@
   .rlist .count { font: 700 17px var(--ui); color: var(--ink); }
   .party { display: flex; flex-wrap: wrap; gap: 8px; }
   .party span { display: inline-flex; align-items: center; padding: 4px 10px; border: 1px solid var(--line); background: rgba(0, 0, 0, .5); font: 600 15px var(--ui); letter-spacing: .06em; }
-  .empty { margin: 4px 0; font: 500 17px var(--ui); letter-spacing: .05em; color: var(--faint); }
+  .none { display: grid; justify-items: center; gap: 12px; margin-top: 8vh; padding: 48px 32px; border: 1px dashed var(--line); background: rgba(16, 12, 10, .6); text-align: center; }
+  .none b { font: 30px var(--display); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .none span { font: 500 18px var(--ui); letter-spacing: .04em; color: var(--muted); }
 
   footer { display: flex; gap: 22px; font: 500 14px var(--ui); letter-spacing: .08em; color: var(--faint); }
-  kbd { display: inline-block; min-width: 22px; padding: 1px 6px; margin-right: 6px; border: 1px solid #4a423a; border-bottom-width: 2px; text-align: center; font: 600 12px var(--ui); color: var(--muted); }
   .credits { margin-left: auto; color: #5d554c; }
 
   .joincode { padding: 32px 40px; border: 1px solid var(--line); background: rgba(16, 12, 10, .96); color: var(--ink); text-align: center; }
