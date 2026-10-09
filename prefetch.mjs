@@ -5,7 +5,8 @@ import path from 'node:path';
 import { buffer } from 'node:stream/consumers';
 import { brotliDecompressSync } from 'node:zlib';
 import { CHUNK, cachePath, cached, cachedBytes, upstream } from './lib/cache.mjs';
-import { mapList, mapPage } from './lib/pages.mjs';
+import { mapPage } from './lib/pages.mjs';
+import { MAPS } from './web/catalog.mjs';
 
 const HEADERS = { 'user-agent': 'Mozilla/5.0 (bo1z-lan build)', 'accept-encoding': 'br, gzip, zstd' };
 const REF = /["'`](\.{0,2}\/?[\w./-]+\.(?:m?js|css|json|wasm|webp|png|svg|woff2?))["'`]/g;
@@ -108,7 +109,7 @@ async function runAll(tasks) {
   }));
 }
 
-const list = await mapList();
+const list = MAPS;
 console.log(`${list.length} cartes : ${list.map(map => map.slug).join(', ')}`);
 
 await crawl('/bo1z', '/bo1z/');

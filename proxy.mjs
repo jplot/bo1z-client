@@ -80,7 +80,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return res.writeHead(405).end();
     const local = await localFile(url.pathname);
     if (local) return await serve(req, res, 200, { 'content-type': TYPES[path.extname(local.file)] ?? 'application/octet-stream', 'content-length': local.size }, createReadStream(local.file));
-    const page = CACHE && await mapPage(url.pathname);
+    const page = await mapPage(url.pathname);
     if (page) return await serve(req, res, 200, { 'content-type': 'text/html', 'content-length': Buffer.byteLength(page) }, Readable.from([page]));
     const headers = { 'user-agent': req.headers['user-agent'], 'accept-encoding': req.headers['accept-encoding'] };
     if (!CACHE) {
