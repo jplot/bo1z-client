@@ -1,27 +1,32 @@
-# bo1z-lan
+# bo1z
 
-Relais local de https://vel.gg/bo1z. Le jeu tourne sur `http://127.0.0.1`, que les navigateurs traitent comme un contexte sécurisé : le moteur y a `SharedArrayBuffer` sans HTTPS. C'est la base pour patcher le moteur vers un multijoueur en réseau local.
+Black Ops Zombies dans le navigateur, à plusieurs. Le point de départ est le portage de https://vel.gg/bo1z : son site et son moteur compilé sont désormais dans ce dépôt, et seules les données du jeu peuvent encore venir de vel.gg. Le jeu tourne sur `http://127.0.0.1`, que les navigateurs traitent comme un contexte sécurisé : le moteur y a `SharedArrayBuffer` sans HTTPS.
+
+## Organisation
+
+- `proxy.mjs` et `lib/` : le relais (site, salons, pont UDP, cache des données du jeu).
+- `web/` : le site, servi sous `/bo1z` et modifié directement. Le menu (`index.html`, `menu.js`, `menu.css`), la liste de nos cartes (`catalog.mjs`), le gabarit des pages de carte (`map.html`), le réseau (`kbnet.js`, `ring.js`), et le reste du site repris de vel.gg (`play.js`, `engine.js`, `artifacts/KisakBlack-web.mjs`…).
+- `engine/KisakBlack-web.wasm` : le moteur compilé par vel.gg à partir de KisakBlack (C++, GPL-3.0). Seul fichier qu'on ne peut modifier qu'en le patchant.
+- `patch/` : les patchs du wasm et le réécrivain qui les applique.
+- branche `assets` : les données du jeu (cartes, manifestes, images, caches de shaders, vidéos), voir « Jouer sans vel.gg ».
 
 ## Lancer
 
 ```sh
-node proxy.mjs   # port 8484, ou PORT=...
+node patch/build.mjs   # écrit overrides/bo1z/artifacts/KisakBlack-web.wasm
+node proxy.mjs         # port 8484, ou PORT=...
 ```
 
 Puis ouvrir http://127.0.0.1:8484/bo1z dans Chrome.
 
-- `cache/` garde les fichiers de vel.gg en clair, rangés comme le site (une page dans `<chemin>/index.html`), sans jamais les rafraîchir ; le relais y découpe à la volée les morceaux `?part=k` que demande le jeu. Supprimer le dossier pour reprendre la version en ligne.
-- Un fichier posé à `overrides/<chemin>` remplace `/<chemin>`, par exemple `overrides/bo1z/artifacts/KisakBlack-web.wasm`.
+- Le relais sert d'abord `overrides/` (le moteur patché), puis `web/`, puis les pages de carte rendues depuis `web/map.html`, et enfin les données du jeu depuis `cache/`.
+- `cache/` garde les données du jeu en clair, rangées comme sur vel.gg, sans jamais les rafraîchir ; le relais y découpe à la volée les morceaux `?part=k` que demande le jeu. Ce qui manque est téléchargé chez vel.gg.
 - La télémétrie du site reste sur ce poste : chaque envoi (plantage avec les 300 dernières lignes de la console du moteur, erreurs, fin de session) est ajouté à `telemetry/<PORT>.jsonl`.
 - `ws://127.0.0.1:<PORT>/kbnet` relie la page au port UDP `NET_PORT` (3074 par défaut, le port que le jeu prend quand `connect` n'en précise pas), ouvert sur le réseau local : le relais affiche au démarrage les adresses à donner aux autres joueurs.
 
 ## Patcher le moteur
 
-```sh
-node patch/build.mjs
-```
-
-Le script télécharge si besoin les fichiers moteur de vel.gg dans `cache/`, puis écrit dans `overrides/` le wasm patché (envoi, réception et `connect` vers une IPv4 passent par `kbnet.js`), le module JS qui le charge, `kbnet.js`, `ring.js`, `engine.js` et `input.js`. Si vel.gg change son moteur, il s'arrête sur le patch qui ne trouve plus son site. `rm -r overrides` revient au jeu d'origine.
+`node patch/build.mjs` lit `engine/KisakBlack-web.wasm` et écrit le wasm patché dans `overrides/`, sans réseau : envoi, réception et `connect` vers une IPv4 passent par `kbnet.js`, la pause ne fige plus l'hôte, les assertions ne sont plus fatales. Le module JS qui charge le moteur (`web/artifacts/KisakBlack-web.mjs`) déclare les imports ajoutés et se modifie directement, comme tout le reste du site. `rm -r overrides` revient au moteur d'origine.
 
 ## Jouer à plusieurs
 
@@ -29,9 +34,9 @@ Deux façons de se rejoindre ; dans les deux cas, celui qui rejoint charge d'abo
 
 ### Salon (WebRTC)
 
-Le menu de sélection des cartes de vel.gg (`/bo1z`, où mène aussi la racine du site) gagne une ligne MULTIJOUEUR. Son panneau liste les salons ouverts avec leur carte, en crée un (on choisit ensuite la carte dans le menu) et copie un lien d'invitation (`/bo1z?room=<nom>`) qui ouvre directement la carte de l'hôte. Le pseudo saisi dans le panneau est retenu par le navigateur et envoyé au jeu (`name`) avant la connexion ; sans pseudo, le serveur renomme les doublons « Unknown Soldier 1 ».
+Le menu (`/bo1z`, où mène aussi la racine du site) liste à droite les salons ouverts avec leur carte et leurs joueurs. REJOINDRE ouvre la carte de l'hôte ; CRÉER UN SALON ouvre la carte sélectionnée en tant qu'hôte et copie le lien d'invitation (`/bo1z?room=<nom>`), qui propose de rejoindre avec son pseudo. Le pseudo est retenu par le navigateur et envoyé au jeu (`name`) avant la connexion ; sans pseudo, le serveur renomme les doublons « Unknown Soldier 1 ». Le Mode Enfer ne s'applique qu'en solo pour l'instant.
 
-Sans passer par le lobby, tous les joueurs ouvrent la même adresse avec `?room=<nom>`, par exemple `http://127.0.0.1:8484/bo1z/nacht?room=soiree`. Le premier arrivé est l'hôte. Le serveur ne fait que présenter les navigateurs (`/signal`) ; les paquets du jeu passent ensuite directement de l'un à l'autre (sur le réseau local, ils ne quittent pas la box). Le moteur voit les joueurs sous des étiquettes `10.0.0.<n>` (l'hôte est `10.0.0.1`), puisque la page ne connaît pas les vraies adresses. `ICE_SERVERS` (JSON, STUN de Google par défaut) règle les serveurs utilisés pour traverser les box par internet ; deux joueurs derrière des box trop strictes auront besoin d'un serveur TURN.
+Sans passer par le menu, tous les joueurs ouvrent la même adresse avec `?room=<nom>`, par exemple `http://127.0.0.1:8484/bo1z/nacht?room=soiree`. Le premier arrivé est l'hôte. Le serveur ne fait que présenter les navigateurs (`/signal`) ; les paquets du jeu passent ensuite directement de l'un à l'autre (sur le réseau local, ils ne quittent pas la box). Le moteur voit les joueurs sous des étiquettes `10.0.0.<n>` (l'hôte est `10.0.0.1`), puisque la page ne connaît pas les vraies adresses. `ICE_SERVERS` (JSON, STUN de Google par défaut) règle les serveurs utilisés pour traverser les box par internet ; deux joueurs derrière des box trop strictes auront besoin d'un serveur TURN.
 
 ### Relais UDP (vraies adresses IP)
 
@@ -42,13 +47,14 @@ Sans passer par le lobby, tous les joueurs ouvrent la même adresse avec `?room=
 
 ## Jouer sans vel.gg
 
-La branche `assets` contient `cache/` rempli : le site, le moteur et les 10 cartes (5,4 Go dans git, 9 Go sur le disque). Elle ne doit vivre que dans un dépôt privé. Dans un clone :
+La branche `assets` contient les données du jeu servies par vel.gg le 2026-10-09 : les 10 cartes en vrais fichiers, leurs manifestes, les images et les caches de shaders (5,4 Go dans git, 9 Go sur le disque). Les 13 fichiers de plus de 95 Mo passent par Git LFS (GitHub refuse les fichiers de plus de 100 Mio). Elle ne doit vivre que dans un dépôt privé. Dans un clone, avec `git-lfs` installé :
 
 ```sh
+git lfs install --local
 git worktree add cache assets
 ```
 
-Le relais sert alors tout depuis le disque, pages de salon et reprises par plage comprises, et `node patch/build.mjs` patche le moteur de cette version figée. Cette branche est désormais le code du site : on ne la rafraîchit plus depuis vel.gg, on la modifie. Les dix pages de carte n'en font plus qu'une, `bo1z/map.html`, que le relais remplit avec `{{zone}}` et `{{name}}` d'après `maps.js`. `node prefetch.mjs` vérifie chaque fichier du jeu contre le SHA-256 du manifeste de vel.gg (et retélécharge ce qui manquerait).
+Le relais sert alors tout depuis le disque, pages de salon et reprises par plage comprises. `node prefetch.mjs` vérifie chaque fichier du jeu contre le SHA-256 du manifeste de vel.gg et retélécharge ce qui manquerait.
 
 GitHub refuse un envoi de plus de 2 Go : la branche se pousse commit par commit (un par carte).
 
@@ -64,12 +70,12 @@ heroku config:set BO1Z_PASSWORD=<mot de passe>
 git push heroku main
 ```
 
-Les joueurs ouvrent `https://<nom>.herokuapp.com/bo1z/nacht?room=<salon>` ; le navigateur demande le mot de passe (n'importe quel identifiant). Le build de déploiement (`heroku-postbuild`) patche le moteur tel que vel.gg le sert ce jour-là ; le `Procfile` démarre sans pont UDP (`NET_PORT=0`, Heroku n'en reçoit pas) et sans cache disque (`CACHE=0`, disque éphémère) : les packs transitent par le serveur à chaque premier chargement. La branche `assets` n'y part pas : Heroku refuse les dépôts de plus de 1 Go. Il faut une offre qui ne se met pas en veille (Basic), sinon les parties sont coupées après 30 minutes sans visite.
+Les joueurs ouvrent `https://<nom>.herokuapp.com/bo1z` ; le navigateur demande le mot de passe (n'importe quel identifiant). Le build de déploiement (`heroku-postbuild`) patche `engine/` sans contacter vel.gg ; le site vient de `web/`. Le `Procfile` démarre sans pont UDP (`NET_PORT=0`, Heroku n'en reçoit pas) et sans cache disque (`CACHE=0`, disque éphémère) : seules les données du jeu transitent depuis vel.gg, à chaque premier chargement. La branche `assets` n'y part pas : Heroku refuse les dépôts de plus de 1 Go. Il faut une offre qui ne se met pas en veille (Basic), sinon les parties sont coupées après 30 minutes sans visite.
 
-L'adresse étant publique, elle relaie le jeu d'Activision et le code de vel.gg : garder `BO1Z_PASSWORD` et un usage privé.
+L'adresse étant publique, elle relaie le jeu d'Activision : garder `BO1Z_PASSWORD` et un usage privé.
 
 ## Tests
 
-`npm test` fait passer un datagramme d'un relais à l'autre, vérifie le salon (numérotation, acheminement, départs, origine, mot de passe), le service depuis le cache (longueur, plages, pages de salon), les files partagées avec de vrais threads et le réécrivain de wasm sur un module minimal.
+`npm test` fait passer un datagramme d'un relais à l'autre, vérifie le salon (numérotation, acheminement, départs, origine, mot de passe, ping de maintien), le service du site, des pages de carte et du cache (longueur, plages, pages de salon), les files partagées avec de vrais threads et le réécrivain de wasm sur un module minimal.
 
 Node 22.15 ou plus récent (zstd dans `node:zlib`) ; Heroku utilise Node 24.
