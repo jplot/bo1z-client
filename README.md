@@ -53,7 +53,7 @@ Le relais sert alors tout depuis le disque, pages de salon et reprises par plage
 GitHub refuse un envoi de plus de 2 Go : la branche se pousse commit par commit (un par carte).
 
 ```sh
-for c in $(git rev-list --reverse assets); do git push origin $c:refs/heads/assets; done
+for c in $(git rev-list --reverse assets); do git push origin "${c}:refs/heads/assets"; done
 ```
 
 ## Héberger sur Heroku
