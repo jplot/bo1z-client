@@ -51,7 +51,6 @@ function progress() {
   return { pct, detail: pct === null ? '' : [`${pct} %`, eta].filter(Boolean).join(' · ') };
 }
 
-const seen = new Set();
 const steps = [
   ...(roomName ? [{
     label: () => (role() === 'guest' ? 'Liaison directe avec l’hôte' : 'Ouverture du salon'),
@@ -61,7 +60,7 @@ const steps = [
   {
     label: () => 'Téléchargement de la carte',
     state: screen => (screen === 'download' ? 'now' : ['loading', 'ready', 'playing'].includes(screen) ? 'done' : 'wait'),
-    detail: screen => (screen === 'download' ? progress().detail : seen.has('download') || screen === 'landing' ? '' : 'déjà téléchargée'),
+    detail: screen => (screen === 'download' ? progress().detail : ''),
   },
   {
     label: () => 'Chargement du moteur',
@@ -90,7 +89,6 @@ const sampling = setInterval(() => {
 
 function render() {
   const screen = document.body.dataset.screen;
-  seen.add(screen);
   const guest = role() === 'guest';
   if (screen === 'playing' && guest && !joinStarted) joinStarted = performance.now();
   const done = screen === 'error' || (screen === 'playing' && (!guest || joined || performance.now() - joinStarted > 120000));
