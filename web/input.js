@@ -64,6 +64,8 @@ export function captureInput(canvas, send, hooks = {}) {
     if (key === 27 && enabled && performance.now() - injectedAt < 500) { event.preventDefault(); return; }
     if (!active()) return;
     if (key === undefined) return;
+    // Cmd+V intercepté ici bloquait l'événement paste.
+    if ((event.metaKey || event.ctrlKey) && event.code === 'KeyV') return;
     event.preventDefault();
     if (key === 27) escapeAt = performance.now();
     if (!held.has(event.code)) {
@@ -71,7 +73,14 @@ export function captureInput(canvas, send, hooks = {}) {
       held.set(event.code, key);
     }
     if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) emit({ kind: 'char', char: event.key.codePointAt(0) });
+    // La console du moteur attend le caractère 8 pour effacer, comme WM_CHAR sous Windows.
+    else if (event.key === 'Backspace') emit({ kind: 'char', char: 8 });
   }, { capture: true });
+  on(document, 'paste', event => {
+    if (!active()) return;
+    event.preventDefault();
+    for (const char of event.clipboardData.getData('text')) if (char >= ' ') emit({ kind: 'char', char: char.codePointAt(0) });
+  });
   on(document, 'keyup', event => {
     const key = held.get(event.code);
     if (key === undefined) return;

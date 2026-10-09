@@ -425,6 +425,8 @@ export function createEngine(canvas, state) {
     // keep their normal settings and real pointer/fullscreen APIs.
     if (globalThis.__headlessInput && globalThis.__kisakParity)
       args.splice(args.indexOf('+devmap'), 0, ...(globalThis.__kisakParity.commands ?? []));
+    // monkeytoy 1 (défaut du jeu) ferme la console ; kbnet y passe connect et name.
+    args.splice(args.indexOf('+devmap'), 0, '+set', 'monkeytoy', '0');
     state.arguments = args;
     progress('files', null, `Opening ${map.name} from your saved pack…`);
     // overlap (play.js packGate): register every boot file not yet verified; the engine's file opens wait on them.

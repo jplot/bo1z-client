@@ -11,12 +11,6 @@ async function override(urlPath, content) {
   await writeFile(file, content);
 }
 
-function replaceOnce(text, from, to, label) {
-  const count = text.split(from).length - 1;
-  if (count !== 1) throw new Error(`${label} : « ${from} » trouvé ${count} fois`);
-  return text.replace(from, () => to);
-}
-
 const I32 = 0x7f;
 const IMPORTS = [
   { module: 'env', name: 'kb_net_send', params: [I32, I32, I32, I32], results: [] },
@@ -157,29 +151,6 @@ const module = parse(new Uint8Array(original));
 const wasm = rebuild(module, { imports: IMPORTS, edits: patches(module) });
 if (!WebAssembly.validate(wasm)) throw new Error('wasm patché invalide');
 await override(`${ARTIFACTS}KisakBlack-web.wasm`, wasm);
-
-let glue = await readFile(path.join(ROOT, 'engine', 'KisakBlack-web.mjs'), 'utf8');
-glue = replaceOnce(glue, 'wgpuDeviceHasFeature:_wgpuDeviceHasFeature}',
-  'wgpuDeviceHasFeature:_wgpuDeviceHasFeature,kb_net_send:kbnet.send,kb_net_recv:kbnet.recv,kb_net_resolve:kbnet.resolve,kb_net_command:kbnet.nextCommand}', 'imports');
-glue = replaceOnce(glue, 'worker.postMessage({cmd:1,handlers,wasmMemory,wasmModule})',
-  'worker.postMessage({cmd:1,handlers,wasmMemory,wasmModule,kbnet:kbnet.shared})', 'chargement des pthreads');
-glue = replaceOnce(glue, 'wasmMemory=msgData.wasmMemory;', 'wasmMemory=msgData.wasmMemory;kbnet.attach(wasmMemory,msgData.kbnet);', 'pthread');
-glue = replaceOnce(glue, 'worker.onmessage=e=>{var d=e.data;', 'worker.onmessage=e=>{var d=e.data;if(d.kbnet)return kbnet.forward(d.kbnet);', 'messages des pthreads');
-await override(`${ARTIFACTS}KisakBlack-web.mjs`, `import * as kbnet from "../kbnet.js";${glue}`);
-
-const engine = replaceOnce(await readFile(path.join(ROOT, 'web', 'engine.js'), 'utf8'), '    state.arguments = args;',
-  "    args.splice(args.indexOf('+devmap'), 0, '+set', 'monkeytoy', '0');\n    state.arguments = args;", 'arguments du moteur');
-await override('/bo1z/engine.js', engine);
-
-// La console attend le caractère 8 pour effacer, comme WM_CHAR sous Windows ; Cmd+V intercepté bloquait l'événement paste.
-let input = await readFile(path.join(ROOT, 'web', 'input.js'), 'utf8');
-input = replaceOnce(input, "    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) emit({ kind: 'char', char: event.key.codePointAt(0) });\n",
-  "    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) emit({ kind: 'char', char: event.key.codePointAt(0) });\n    else if (event.key === 'Backspace') emit({ kind: 'char', char: 8 });\n", 'effacement');
-input = replaceOnce(input, '    if (key === undefined) return;\n    event.preventDefault();\n',
-  "    if (key === undefined) return;\n    if ((event.metaKey || event.ctrlKey) && event.code === 'KeyV') return;\n    event.preventDefault();\n", 'raccourci coller');
-input = replaceOnce(input, "  on(document, 'keyup', event => {\n",
-  "  on(document, 'paste', event => {\n    if (!active()) return;\n    event.preventDefault();\n    for (const char of event.clipboardData.getData('text')) if (char >= ' ') emit({ kind: 'char', char: char.codePointAt(0) });\n  });\n  on(document, 'keyup', event => {\n", 'coller');
-await override('/bo1z/input.js', input);
 
 // landing.js n'est pas en UTF-8 : l'import s'ajoute aux octets d'origine.
 await override('/bo1z/landing.js', Buffer.concat([await readFile(path.join(ROOT, 'web', 'landing.js')), Buffer.from("\nimport './multiplayer.js';\n")]));
