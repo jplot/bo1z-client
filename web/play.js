@@ -82,8 +82,8 @@ function introRetire() {
   intro.video.muted = true; intro.video.pause(); intro.video.remove(); document.body.classList.remove('intro', 'cinematic');
 }
 // End or skip: picture and sound stop at once (no fade, no tail) and whatever is below shows: the engine's frame,
-// its native loadscreen, or the page's loadscreen art before the engine presents. The element jumps to its end, so
-// the engine's adopted stream (video_bridge.js) reports "finished" and never restarts it.
+// its native loadscreen, or the page's loadscreen art before the engine presents. The element jumps to its end and fires
+// 'ended' (a paused seek fires none), the only finish the engine's adopted stream sees: Call of the Dead waited for a key.
 function introFinish(reason) {
   if (!intro || intro.finished) return;
   const video = intro.video;
@@ -95,7 +95,7 @@ function introFinish(reason) {
     intro.skipped = true;
     const seekable = video.seekable.length && video.seekable.end(video.seekable.length - 1) >= video.duration;
     if (seekable && !video.ended) video.currentTime = video.duration;
-    else if (!video.ended) video.dispatchEvent(new Event('ended'));
+    video.dispatchEvent(new Event('ended'));
   }
 }
 // The cinematic only ends early once the game has loaded: while it still downloads/loads, keys and clicks leave it
