@@ -17,7 +17,6 @@ const roomName = query.get('room');
 const map = MAPS.find(entry => entry.zone === document.documentElement.dataset.map) ?? MAPS.find(entry => entry.first);
 const kbnet = () => globalThis.kbnet;
 const role = () => (kbnet()?.label ? (kbnet().label === HOST ? 'host' : 'guest') : null);
-const read = (store, key) => { try { return store.getItem(key); } catch { return null; } };
 
 const root = document.createElement('section');
 root.className = 'kb-loading';
@@ -136,8 +135,7 @@ function render() {
   set($('.kb-prompt'), 'hidden', !(screen === 'ready' || waiting));
   set($('.kb-prompt'), 'textContent', waiting ? 'Entrée dans la partie de l’hôte…'
     : linkPending() ? `En attente de la liaison avec ${hostName}…` : 'Clique ou appuie sur une touche pour entrer');
-  const copied = role() === 'host' && read(sessionStorage, 'bo1z-copied') === roomName;
-  const [link, label] = guest ? (kbnet()?.linked ? ['ok', 'connecté'] : ['wait', 'liaison…']) : copied ? ['copied', 'lien d’invitation copié'] : [];
+  const [link, label] = guest ? (kbnet()?.linked ? ['ok', 'connecté'] : ['wait', 'liaison…']) : [];
   set($('.kb-link'), 'hidden', !link);
   set($('.kb-link'), 'className', `kb-link ${link ?? ''}`);
   set($('.kb-link'), 'textContent', label ?? '');

@@ -108,7 +108,7 @@ function join(room) {
 async function create(name) {
   if (!name) return toast('Donne un nom au salon.');
   if (rooms.some(room => room.name === name)) return toast(`Le salon « ${name} » existe déjà.`);
-  await navigator.clipboard?.writeText(inviteUrl(name)).then(() => { try { sessionStorage.setItem('bo1z-copied', name); } catch {} }, () => {});
+  await navigator.clipboard?.writeText(inviteUrl(name)).catch(() => {});
   go(MAPS[current], { room: name });
 }
 

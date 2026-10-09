@@ -24,7 +24,6 @@ body:has(.kb-loading:not(.kb-gone)) :is(#settings, #notice) { display: none; }
 .kb-link::before { content: '●'; margin-right: 6px; }
 .kb-link.wait::before { color: var(--amber); animation: kb-pulse 1s ease-in-out infinite; }
 .kb-link.ok::before { color: var(--ok); }
-.kb-link.copied::before { content: '✓'; color: var(--ok); }
 .kb-steps { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 8px; }
 .kb-steps li { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 10px; font: 600 19px var(--ui); letter-spacing: .06em; color: var(--faint); }
 .kb-steps li::before { content: ''; width: 12px; height: 12px; margin-left: 4px; border: 2px solid #4a423a; border-radius: 50%; }
