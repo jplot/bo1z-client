@@ -63,7 +63,6 @@ function select(i) {
   $('place').textContent = map.place;
   $('desc').textContent = map.desc;
   $('hell').hidden = !map.horde;
-  $('create-label').textContent = `Créer un salon sur ${map.name}`;
   renderRooms();
 }
 

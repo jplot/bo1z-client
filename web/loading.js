@@ -23,17 +23,18 @@ const root = document.createElement('section');
 root.className = 'kb-loading';
 root.setAttribute('aria-live', 'polite');
 root.innerHTML = `<div class="kb-art"></div><div class="kb-veil"></div>
-  <a class="kb-back" href="/bo1z"><kbd>⎋</kbd>Retour</a>
+  <a class="kb-back" href="/bo1z">Retour</a>
   <div class="kb-box">
-    <div class="kb-kicker"></div><h2 class="kb-name"></h2><div class="kb-party"></div>
+    <div class="kb-kicker"></div><h2 class="kb-name"></h2><div class="kb-party"><span class="kb-names"></span><span class="kb-link" hidden></span></div>
     <ol class="kb-steps"></ol><div class="kb-bar"><i></i></div>
-    <p class="kb-prompt" hidden>Clique ou appuie sur une touche pour entrer</p>
+    <p class="kb-prompt" hidden></p>
     <p class="kb-note" hidden><b>La souris n’a pas pu être capturée.</b> Clique encore une fois sur l’écran.</p>
   </div>
   <aside class="kb-tip"><b>Astuce</b><span></span></aside>`;
 const $ = selector => root.querySelector(selector);
 $('.kb-art').style.backgroundImage = `url(art/loadscreen_${map.zone}.webp)`;
 $('.kb-name').textContent = map.name;
+$('.kb-party').hidden = !roomName;
 document.body.append(root);
 
 let tip = Math.floor(Math.random() * TIPS.length);
@@ -52,11 +53,6 @@ function progress() {
 }
 
 const steps = [
-  ...(roomName ? [{
-    label: () => (role() === 'guest' ? 'Liaison directe avec l’hôte' : 'Ouverture du salon'),
-    state: () => (role() === 'host' || kbnet()?.linked ? 'done' : 'now'),
-    detail: () => (role() === 'host' && read(sessionStorage, 'bo1z-copied') === roomName ? 'lien d’invitation copié' : ''),
-  }] : []),
   {
     label: () => 'Téléchargement de la carte',
     state: screen => (screen === 'download' ? 'now' : ['loading', 'ready', 'playing'].includes(screen) ? 'done' : 'wait'),
@@ -67,8 +63,6 @@ const steps = [
     state: screen => (screen === 'loading' ? 'now' : ['ready', 'playing'].includes(screen) ? 'done' : 'wait'),
     detail: screen => (screen === 'loading' ? progress().detail : ''),
   },
-  { label: () => 'Prêt', state: screen => (screen === 'ready' ? 'now' : screen === 'playing' ? 'done' : 'wait') },
-  ...(roomName ? [{ guest: true, label: () => 'Entrée dans la partie de l’hôte', state: screen => (joined ? 'done' : screen === 'playing' ? 'now' : 'wait') }] : []),
 ];
 for (const step of steps) {
   step.item = document.createElement('li');
@@ -98,7 +92,6 @@ function render() {
   set($('.kb-kicker'), 'textContent', roomName ? `Salon ${roomName}${role() === 'host' ? ' · tu es l’hôte' : ''}`
     : `Partie solo${query.get('horde') === '1' ? ' · Mode Enfer' : ''}`);
   for (const step of steps) {
-    set(step.item, 'hidden', Boolean(step.guest && !guest));
     set(step.item, 'className', step.state(screen));
     set(step.item.firstChild, 'textContent', step.label(screen));
     set(step.item.lastChild, 'textContent', step.detail?.(screen) ?? '');
@@ -107,7 +100,13 @@ function render() {
   $('.kb-bar').classList.toggle('kb-wait', waiting);
   const width = waiting ? 30 : ['ready', 'playing'].includes(screen) ? 100 : ['download', 'loading'].includes(screen) ? progress().pct ?? 0 : 0;
   set($('.kb-bar i').style, 'width', `${width}%`);
-  set($('.kb-prompt'), 'hidden', screen !== 'ready');
+  set($('.kb-prompt'), 'hidden', !(screen === 'ready' || waiting));
+  set($('.kb-prompt'), 'textContent', waiting ? 'Entrée dans la partie de l’hôte…' : 'Clique ou appuie sur une touche pour entrer');
+  const copied = role() === 'host' && read(sessionStorage, 'bo1z-copied') === roomName;
+  const [link, label] = guest ? (kbnet()?.linked ? ['ok', 'connecté'] : ['wait', 'liaison…']) : copied ? ['copied', 'lien d’invitation copié'] : [];
+  set($('.kb-link'), 'hidden', !link);
+  set($('.kb-link'), 'className', `kb-link ${link ?? ''}`);
+  set($('.kb-link'), 'textContent', label ?? '');
   const notice = document.getElementById('notice');
   set($('.kb-note'), 'hidden', !(screen === 'ready' && notice && !notice.hidden && /declined/.test(notice.textContent)));
   if (done) [ticking, sampling, tips].forEach(clearInterval);
@@ -122,7 +121,7 @@ async function party() {
     const next = JSON.stringify(room?.names ?? []);
     if (next !== names) {
       names = next;
-      $('.kb-party').replaceChildren(...JSON.parse(next).map((name, k) =>
+      $('.kb-names').replaceChildren(...JSON.parse(next).map((name, k) =>
         Object.assign(document.createElement('span'), { className: k === 0 ? 'host' : '', textContent: name || 'Unknown Soldier' })));
     }
   } catch {}
