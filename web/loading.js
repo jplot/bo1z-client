@@ -182,10 +182,10 @@ function render() {
   if (bar?.groups) for (const key of Object.keys(PARTS)) {
     if (key !== 'engine' && !bar.groups[key]) continue;
     const [done, size] = bar.groups[key] ?? [];
-    const fill = full ? 1 : key === 'engine' ? bar.engine ?? 0 : done / size, node = part(key);
-    set(node, 'className', `kb-part ${fill >= 1 ? 'done' : fill > 0 ? 'now' : 'wait'}${key === 'engine' && waiting ? ' kb-wait' : ''}`);
-    set(node.firstChild.firstChild.style, 'width', `${Math.floor(fill * 100)}%`);
-    set(node.querySelector('em'), 'textContent', fill > 0 && fill < 1 ? `${Math.floor(fill * 100)} %` : '');
+    const pct = full ? 100 : Math.floor(100 * (key === 'engine' ? bar.engine ?? 0 : done / size)), node = part(key);
+    set(node, 'className', `kb-part ${pct >= 100 ? 'done' : pct > 0 ? 'now' : 'wait'}${key === 'engine' && waiting ? ' kb-wait' : ''}`);
+    set(node.firstChild.firstChild.style, 'width', `${pct}%`);
+    set(node.querySelector('em'), 'textContent', pct > 0 && pct < 100 ? `${pct} %` : '');
   }
   set($('.kb-status span'), 'textContent', full ? 'Prêt' : screen === 'loading' ? 'Chargement du moteur' : 'Téléchargement de la carte');
   set($('.kb-status i'), 'className', full ? 'kb-ok' : '');

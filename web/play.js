@@ -206,7 +206,8 @@ function warmEta() {
 function barTick() {
   const run = barRun; if (!run) return; const now = performance.now(), dt = (now - run.last) / 1000; run.last = now;
   const dl = run.dl, booted = Boolean(state.boot), e = engineFraction();
-  bar.engine = Math.max(bar.engine ?? 0, e);
+  // loadbar: the engine segment starts after callMain's 10%: the wasm start takes ~0.7 s, then FS_Startup waits for every IWD.
+  bar.engine = Math.max(bar.engine ?? 0, (e - .1) / .9);
   const d = booted || !dl ? (dl || booted ? 1 : 0) : (dl.completed - dl.c0) / Math.max(1, dl.total - dl.c0);
   const model = run.wd * d + (1 - run.wd) * e;
   let rem = null;
