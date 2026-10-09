@@ -3,3 +3,4 @@ overrides/
 node_modules/
 build/
 telemetry/
+.cache/

@@ -79,4 +79,6 @@ Le site n'a pas de mot de passe : quiconque connaît l'adresse peut y jouer, et 
 
 `npm test` fait passer un datagramme d'un relais à l'autre, vérifie le salon (numérotation, acheminement, départs, origine, ping de maintien), le service du site, des pages de carte et du cache (longueur, plages, pages de salon), les files partagées avec de vrais threads et le réécrivain de wasm sur un module minimal.
 
+Puis Playwright (`e2e/`) dans le Chrome installé, fenêtres visibles : sans fenêtre, Chrome refuse la capture de la souris et le clic à « Prêt » n'entre pas en jeu. Il vérifie le menu (les dix cartes, le Mode Enfer, les salons publics sans les privés, le code, la création d'un salon, les options), l'entrée en jeu en un clic sur chaque carte sans son introuvable, la pause en solo et son absence en salon, un salon à deux (liaison directe, départ de l'hôte), un salon privé rejoint par son code, et l'écran d'un téléchargement coupé. Les profils de Chrome restent dans `.cache/e2e` : le premier lancement télécharge les dix cartes (environ 9 Go, 5 minutes), les suivants les trouvent sur place. Le relais de test les sert depuis `cache` (branche `assets`) ; sans lui, il les tire de vel.gg.
+
 Node 22.15 ou plus récent (zstd dans `node:zlib`) ; Heroku utilise Node 24.

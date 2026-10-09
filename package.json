@@ -8,6 +8,9 @@
   "scripts": {
     "start": "node proxy.mjs",
     "heroku-postbuild": "node patch/build.mjs",
-    "test": "node --test 'test/*.test.mjs'"
+    "test": "node --test 'test/*.test.mjs' && playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0"
   }
 }
