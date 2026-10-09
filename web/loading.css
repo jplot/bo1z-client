@@ -43,7 +43,21 @@ body:has(.kb-loading:not(.kb-gone)) :is(#settings, #notice) { display: none; }
 @keyframes kb-pulse { 50% { opacity: .45; } }
 .kb-note { margin: 0 0 14px; font: 500 17px var(--ui); letter-spacing: .04em; }
 .kb-note b { color: var(--amber); }
-.kb-note[hidden], .kb-party[hidden], .kb-link[hidden] { display: none; }
+.kb-note[hidden], .kb-party[hidden], .kb-link[hidden], .kb-error[hidden] { display: none; }
+.kb-loading.kb-failed .kb-art { filter: grayscale(1) contrast(1.1) brightness(.7); }
+.kb-loading.kb-failed .kb-veil { background: linear-gradient(0deg, rgba(20,3,2,.97) 0%, rgba(20,3,2,.85) 45%, rgba(40,4,3,.45) 100%),
+  radial-gradient(ellipse at 30% 60%, rgba(200, 38, 27, .25), transparent 60%); }
+.kb-loading.kb-failed :is(.kb-steps, .kb-bar, .kb-prompt, .kb-note, .kb-link, .kb-back, .kb-tip) { display: none; }
+.kb-error h3 { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; font: 700 26px/1.1 var(--ui); letter-spacing: .08em; text-transform: uppercase; }
+.kb-warn { display: inline-grid; place-items: center; width: 28px; height: 28px; background: var(--blood); font: 700 18px system-ui, sans-serif; }
+.kb-error p { margin: 0 0 8px; max-width: 560px; font-size: 17px; color: #e6dccd; }
+.kb-error .kb-error-hint { color: var(--muted); font-size: 15px; }
+.kb-error-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+.kb-primary { padding: 14px 28px; border: 0; background: var(--blood); color: var(--ink); font: 20px var(--display); letter-spacing: .05em; text-transform: uppercase; cursor: pointer; }
+.kb-primary:hover, .kb-primary:focus-visible { background: var(--blood-hot); outline: none; }
+.kb-secondary { display: inline-flex; align-items: center; padding: 14px 20px; border: 1px solid var(--line); background: rgba(16, 12, 10, .72); color: var(--ink);
+  text-decoration: none; font: 600 16px var(--ui); letter-spacing: .14em; text-transform: uppercase; }
+.kb-secondary:hover, .kb-secondary:focus-visible { border-color: var(--amber); color: var(--amber); outline: none; }
 .kb-tip { position: relative; grid-column: 2; grid-row: 1; align-self: start; justify-self: end; width: min(360px, 100%); padding: 14px 16px; border-left: 3px solid var(--amber); background: rgba(10, 8, 7, .78);
   font: 15px/1.4 var(--text); color: #ddd4c5; }
 .kb-tip b { display: block; margin-bottom: 4px; font: 700 13px var(--ui); letter-spacing: .24em; text-transform: uppercase; color: var(--amber); }

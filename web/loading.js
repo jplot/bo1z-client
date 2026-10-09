@@ -29,12 +29,17 @@ root.innerHTML = `<div class="kb-art"></div><div class="kb-veil"></div>
     <ol class="kb-steps"></ol><div class="kb-bar"><i></i></div>
     <p class="kb-prompt" hidden></p>
     <p class="kb-note" hidden><b>La souris n’a pas pu être capturée.</b> Clique encore une fois sur l’écran.</p>
+    <div class="kb-error" hidden>
+      <h3><span class="kb-warn">!</span><span class="kb-error-title"></span></h3><p class="kb-error-text"></p><p class="kb-error-hint"></p>
+      <div class="kb-error-actions"><button class="kb-primary" type="button">Réessayer</button><a class="kb-secondary" href="/bo1z">Retour au menu</a></div>
+    </div>
   </div>
   <aside class="kb-tip"><b>Astuce</b><span></span></aside>`;
 const $ = selector => root.querySelector(selector);
 $('.kb-art').style.backgroundImage = `url(art/loadscreen_${map.zone}.webp)`;
 $('.kb-name').textContent = map.name;
 $('.kb-party').hidden = !roomName;
+$('.kb-primary').addEventListener('click', () => location.reload());
 document.body.append(root);
 
 let tip = Math.floor(Math.random() * TIPS.length);
@@ -71,6 +76,32 @@ for (const step of steps) {
 }
 const set = (element, key, value) => { if (element[key] !== value) element[key] = value; };
 
+// La liaison WebRTC s'établit en une seconde environ : passé 30 s, elle n'arrivera plus, et l'invité jouerait seul sans le savoir.
+const LINK_TIMEOUT = 30000;
+const started = performance.now();
+let hostName = 'l’hôte', failed = false;
+const linkPending = () => Boolean(roomName) && role() !== 'host' && !kbnet()?.linked;
+
+function failure() {
+  const net = kbnet();
+  if (!roomName || !net) return null;
+  if (net.signalFailed) return ['Salon injoignable', 'Le serveur qui met les joueurs en relation ne répond pas.', 'Vérifie ta connexion, puis réessaie.'];
+  if (role() !== 'guest' || net.linked || !(net.linkFailed || performance.now() - started > LINK_TIMEOUT)) return null;
+  return [`Impossible de rejoindre ${hostName}`, 'La liaison directe avec l’hôte n’a pas pu s’établir.',
+    'Vos box bloquent sûrement la connexion directe. Sur le même réseau, ça passe ; par internet, il faudra un serveur relais (TURN).'];
+}
+
+function fail([title, text, hint]) {
+  failed = true;
+  [ticking, sampling, tips].forEach(clearInterval);
+  root.classList.remove('kb-ready', 'kb-gone');
+  root.classList.add('kb-failed');
+  $('.kb-error-title').textContent = title;
+  $('.kb-error-text').textContent = text;
+  $('.kb-error-hint').textContent = hint;
+  $('.kb-error').hidden = false;
+}
+
 // Chez celui qui rejoint, le moteur passe « en jeu » sur sa partie locale, puis charge celle de l'hôte (écran en damier) :
 // on n'est vraiment entré qu'une fois les instantanés de l'hôte arrivés sans interruption, au moins 2 par quart de seconde pendant 3 s.
 let joined = false, joinStarted = 0;
@@ -82,13 +113,15 @@ const sampling = setInterval(() => {
 }, 250);
 
 function render() {
+  const problem = failure();
+  if (problem) return fail(problem);
   const screen = document.body.dataset.screen;
   const guest = role() === 'guest';
   if (screen === 'playing' && guest && !joinStarted) joinStarted = performance.now();
   const done = screen === 'error' || (screen === 'playing' && (!guest || joined || performance.now() - joinStarted > 120000));
   root.classList.toggle('kb-gone', done);
   // Le clic doit atteindre play.js lui-même : relayé depuis cet écran, Chrome refusait la capture de la souris.
-  root.classList.toggle('kb-ready', ['landing', 'ready'].includes(screen));
+  root.classList.toggle('kb-ready', screen === 'landing' || (screen === 'ready' && !linkPending()));
   set($('.kb-kicker'), 'textContent', roomName ? `Salon ${roomName}${role() === 'host' ? ' · tu es l’hôte' : ''}`
     : `Partie solo${query.get('horde') === '1' ? ' · Mode Enfer' : ''}`);
   for (const step of steps) {
@@ -101,7 +134,8 @@ function render() {
   const width = waiting ? 30 : ['ready', 'playing'].includes(screen) ? 100 : ['download', 'loading'].includes(screen) ? progress().pct ?? 0 : 0;
   set($('.kb-bar i').style, 'width', `${width}%`);
   set($('.kb-prompt'), 'hidden', !(screen === 'ready' || waiting));
-  set($('.kb-prompt'), 'textContent', waiting ? 'Entrée dans la partie de l’hôte…' : 'Clique ou appuie sur une touche pour entrer');
+  set($('.kb-prompt'), 'textContent', waiting ? 'Entrée dans la partie de l’hôte…'
+    : linkPending() ? `En attente de la liaison avec ${hostName}…` : 'Clique ou appuie sur une touche pour entrer');
   const copied = role() === 'host' && read(sessionStorage, 'bo1z-copied') === roomName;
   const [link, label] = guest ? (kbnet()?.linked ? ['ok', 'connecté'] : ['wait', 'liaison…']) : copied ? ['copied', 'lien d’invitation copié'] : [];
   set($('.kb-link'), 'hidden', !link);
@@ -121,6 +155,7 @@ async function party() {
     const next = JSON.stringify(room?.names ?? []);
     if (next !== names) {
       names = next;
+      hostName = JSON.parse(next)[0] || 'l’hôte';
       $('.kb-names').replaceChildren(...JSON.parse(next).map((name, k) =>
         Object.assign(document.createElement('span'), { className: k === 0 ? 'host' : '', textContent: name || 'Unknown Soldier' })));
     }
@@ -130,5 +165,9 @@ async function party() {
 if (roomName) party();
 
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && document.body.dataset.screen !== 'playing' && !root.classList.contains('kb-gone')) location.assign('/bo1z');
+  if (root.classList.contains('kb-gone')) return;
+  const screen = document.body.dataset.screen;
+  if (event.key === 'Escape' && (failed || screen !== 'playing')) return location.assign('/bo1z');
+  // Écouteur posé avant celui de play.js : il retient la touche qui ferait entrer sans liaison, ou derrière une erreur.
+  if (failed || (screen === 'ready' && linkPending())) { event.preventDefault(); event.stopImmediatePropagation(); }
 });

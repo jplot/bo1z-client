@@ -147,6 +147,7 @@ function room(name) {
       const connection = new RTCPeerConnection({ iceServers });
       connection.onicecandidate = ({ candidate }) => candidate && tell(label, { candidate });
       connection.ondatachannel = ({ channel }) => attach(label, channel);
+      connection.onconnectionstatechange = () => { if (label === HOST_LABEL && connection.connectionState === 'failed') stats.linkFailed = true; };
       peers.set(label, { connection, channel: null, candidates: [] });
     }
     return peers.get(label);
@@ -178,6 +179,7 @@ function room(name) {
     }
   }
   signal.onmessage = ({ data }) => { queue = queue.then(() => handle(JSON.parse(data))).catch(error => console.error('kbnet', error)); };
+  signal.onclose = () => { if (!stats.label) stats.signalFailed = true; };
 
   return packet => {
     const channel = peers.get(packet.subarray(0, 4).join('.'))?.channel;
