@@ -28,9 +28,9 @@ Le script écrit dans `overrides/` le wasm patché (envoi, réception et `connec
 ## Jouer à plusieurs
 
 - Chaque joueur lance son relais et ouvre la carte sur son propre `127.0.0.1`.
-- L'hôte joue normalement. Les autres ajoutent `?connect=<ip de l'hôte>` à l'URL de la carte, par exemple `http://127.0.0.1:8484/bo1z/nacht?connect=192.168.1.20`.
+- L'hôte joue normalement. Les autres ajoutent `?connect=<ip de l'hôte>` à l'URL de la carte, par exemple `http://127.0.0.1:8484/bo1z/nacht?connect=192.168.1.20` : la carte se charge d'abord en local, puis la page envoie `connect` dès que la partie démarre.
 - Sur un seul Mac, le second joueur lance `PORT=8485 NET_PORT=3075 node proxy.mjs` et ouvre `http://127.0.0.1:8485/bo1z/nacht?connect=127.0.0.1:3074`.
-- `kbnet` dans la console de la page donne les paquets envoyés, reçus et perdus.
+- `kbnet` dans la console de la page donne les paquets envoyés, reçus et perdus ; `kbnet.command('connect 192.168.1.20')` envoie une commande à la console du jeu.
 
 `npm test` fait passer un datagramme d'un relais à l'autre et vérifie le réécrivain de wasm sur un module minimal.
 

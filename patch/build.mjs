@@ -32,6 +32,7 @@ const IMPORTS = [
   { module: 'env', name: 'kb_net_send', params: [I32, I32, I32, I32], results: [] },
   { module: 'env', name: 'kb_net_recv', params: [I32, I32, I32], results: [I32] },
   { module: 'env', name: 'kb_net_resolve', params: [I32, I32, I32], results: [I32] },
+  { module: 'env', name: 'kb_net_command', params: [I32, I32], results: [I32] },
 ];
 const get = local => [0x20, ...leb(local)];
 const i32 = value => [0x41, ...sleb(value)];
@@ -52,6 +53,13 @@ const SENDS = {
 
 const isSimd = (ins, sub) => ins?.op === 0xfd && ins.sub === sub;
 
+// Les octets insérés ne sont pas renumérotés : un appel vers une fonction définie vise déjà son index décalé.
+function callDefined(module, name) {
+  const index = module.names.get(name);
+  if (index === undefined) throw new Error(`fonction absente : ${name}`);
+  return [0x10, ...leb(index + IMPORTS.length)];
+}
+
 function find(module, name, matches, expected) {
   const index = module.names.get(name);
   if (index === undefined) throw new Error(`fonction absente : ${name}`);
@@ -63,7 +71,7 @@ function find(module, name, matches, expected) {
 }
 
 function patches(module) {
-  const [send, recv, resolve] = IMPORTS.map((_, i) => [0x10, ...leb(module.importedFuncs + i)]);
+  const [send, recv, resolve, command] = IMPORTS.map((_, i) => [0x10, ...leb(module.importedFuncs + i)]);
   const edits = new Map();
   const add = (index, edit) => edits.set(index, [...(edits.get(index) ?? []), edit]);
 
@@ -114,6 +122,24 @@ function patches(module) {
   const keys = find(module, 'CL_KeyEvent(int, int, int, unsigned int)', escapeError, 1);
   const [e] = keys.found;
   add(keys.index, { at: keys.list[e].at, end: keys.list[e + 8].at, bytes: [] });
+
+  // SV_KillLocalServer inliné n'arrête le serveur local que pour connect localhost : vers une IP, com_sv_running restait
+  // vrai, CL_WasMapAlreadyLoaded aussi, et le client jouait sur les assets que l'arrêt du serveur avait remplacés par des bouchons.
+  const strcmp = module.names.get('strcmp');
+  const localhost = (list, k) => list[k].op === 0x22 && list[k + 1]?.op === 0x41 && list[k + 2]?.op === 0x10
+    && list[k + 2].index === strcmp && list[k + 3]?.op === 0x45 && list[k + 4]?.op === 0x04;
+  const kill = find(module, 'CL_Connect_f()', localhost, 1);
+  const [l] = kill.found;
+  add(kill.index, { at: kill.list[l + 1].at, end: kill.list[l + 4].at, bytes: [0x1a, ...i32(1)] });
+
+  // Une commande déposée par la page (kbnet.command) passe à Cbuf_AddText, dans un tampon de 512 octets pris sur la pile.
+  const STACK = [0x23, ...leb(0)];
+  const events = find(module, 'Com_EventLoop()', (_, k) => k === 0, 1);
+  add(events.index, { at: events.body.code, end: events.body.code, bytes: [
+    ...STACK, ...i32(512), 0x6b, 0x24, ...leb(0),
+    ...STACK, ...i32(512), ...command, 0x04, 0x40, ...i32(0), ...STACK, ...callDefined(module, 'Cbuf_AddText(int, char const*)'), 0x0b,
+    ...STACK, ...i32(512), 0x6a, 0x24, ...leb(0),
+  ] });
   return edits;
 }
 
@@ -125,16 +151,16 @@ await override(`${ARTIFACTS}KisakBlack-web.wasm`, wasm);
 
 let glue = (await cached(`${ARTIFACTS}KisakBlack-web.mjs`)).toString();
 glue = replaceOnce(glue, 'wgpuDeviceHasFeature:_wgpuDeviceHasFeature}',
-  'wgpuDeviceHasFeature:_wgpuDeviceHasFeature,kb_net_send:kbnet.send,kb_net_recv:kbnet.recv,kb_net_resolve:kbnet.resolve}', 'imports');
+  'wgpuDeviceHasFeature:_wgpuDeviceHasFeature,kb_net_send:kbnet.send,kb_net_recv:kbnet.recv,kb_net_resolve:kbnet.resolve,kb_net_command:kbnet.nextCommand}', 'imports');
 glue = replaceOnce(glue, 'worker.postMessage({cmd:1,handlers,wasmMemory,wasmModule})',
-  'worker.postMessage({cmd:1,handlers,wasmMemory,wasmModule,kbnet:kbnet.rings})', 'chargement des pthreads');
+  'worker.postMessage({cmd:1,handlers,wasmMemory,wasmModule,kbnet:kbnet.shared})', 'chargement des pthreads');
 glue = replaceOnce(glue, 'wasmMemory=msgData.wasmMemory;', 'wasmMemory=msgData.wasmMemory;kbnet.attach(wasmMemory,msgData.kbnet);', 'pthread');
 glue = replaceOnce(glue, 'worker.onmessage=e=>{var d=e.data;', 'worker.onmessage=e=>{var d=e.data;if(d.kbnet)return kbnet.forward(d.kbnet);', 'messages des pthreads');
 await override(`${ARTIFACTS}KisakBlack-web.mjs`, `import * as kbnet from "./kbnet.js";${glue}`);
 for (const file of ['kbnet.js', 'ring.js']) await copyFile(path.join(ROOT, 'web', file), path.join(ROOT, 'overrides', ARTIFACTS, file));
 
 const engine = replaceOnce((await cached('/bo1z/engine.js')).toString(), '    state.arguments = args;',
-  "    args.splice(args.indexOf('+devmap'), 0, '+set', 'monkeytoy', '0');\n    const kbnetConnect = new URLSearchParams(location.search).get('connect');\n    if (kbnetConnect) args.splice(args.indexOf('+devmap'), 2, '+connect', kbnetConnect);\n    state.arguments = args;", 'arguments du moteur');
+  "    args.splice(args.indexOf('+devmap'), 0, '+set', 'monkeytoy', '0');\n    state.arguments = args;", 'arguments du moteur');
 await override('/bo1z/engine.js', engine);
 
 // La console attend le caractère 8 pour effacer, comme WM_CHAR sous Windows ; Cmd+V intercepté bloquait l'événement paste.
