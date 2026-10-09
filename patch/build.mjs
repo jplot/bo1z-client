@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { instructions, leb, parse, rebuild, sleb } from './wasm.mjs';
 
@@ -151,9 +151,5 @@ const module = parse(new Uint8Array(original));
 const wasm = rebuild(module, { imports: IMPORTS, edits: patches(module) });
 if (!WebAssembly.validate(wasm)) throw new Error('wasm patché invalide');
 await override(`${ARTIFACTS}KisakBlack-web.wasm`, wasm);
-
-// landing.js n'est pas en UTF-8 : l'import s'ajoute aux octets d'origine.
-await override('/bo1z/landing.js', Buffer.concat([await readFile(path.join(ROOT, 'web', 'landing.js')), Buffer.from("\nimport './multiplayer.js';\n")]));
-await copyFile(path.join(ROOT, 'web', 'multiplayer.js'), path.join(ROOT, 'overrides', 'bo1z', 'multiplayer.js'));
 
 console.log(`wasm patché : ${wasm.length} octets, ${IMPORTS.length} imports`);
