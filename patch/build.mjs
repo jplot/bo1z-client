@@ -129,30 +129,27 @@ function patches(module) {
   const [e] = keys.found;
   add(keys.index, { at: keys.list[e].at, end: keys.list[e + 8].at, bytes: [] });
 
-  // SV_KillLocalServer inliné n'arrête le serveur local que pour connect localhost : vers une IP, com_sv_running restait
-  // vrai, CL_WasMapAlreadyLoaded aussi, et le client jouait sur les assets que l'arrêt du serveur avait remplacés par des bouchons.
-  const strcmp = module.names.get('strcmp');
-  const localhost = (list, k) => list[k].op === 0x22 && list[k + 1]?.op === 0x41 && list[k + 2]?.op === 0x10
-    && list[k + 2].index === strcmp && list[k + 3]?.op === 0x45 && list[k + 4]?.op === 0x04;
-  const kill = find(module, 'CL_Connect_f()', localhost, 1);
-  const [l] = kill.found;
-  add(kill.index, { at: kill.list[l + 1].at, end: kill.list[l + 4].at, bytes: [0x1a, ...i32(1)] });
-
-  // Sans serveur local, le client charge des scripts du multijoueur classique absents des packs zombies (Server script compile error).
-  const beginLoad = module.names.get('Scr_BeginLoadScripts(scriptInstance_t, int)');
-  const scriptsWithoutServer = (list, k) => list[k].op === 0x2d && list[k].offset === 24 && list[k + 1]?.op === 0x22
-    && list[k + 2]?.op === 0x45 && list[k + 3]?.op === 0x04
-    && list.slice(k + 4, k + 30).some(ins => ins.op === 0x10 && ins.index === beginLoad);
-  const downloads = find(module, 'CL_DownloadsComplete(int)', scriptsWithoutServer, 1);
-  const [d] = downloads.found;
-  add(downloads.index, { at: downloads.list[d + 2].at, end: downloads.list[d + 2].end, bytes: [0x1a, ...i32(0)] });
-
   // Assertions fatales : un second joueur en déclenche que le solo n'atteint jamais (Vec4IsNormalized dans CG_AddPlayerWeapon).
   const asserts = find(module, 'Assert_MyHandler(char const*, int, int, char const*, ...)', (list, k) => list[k].op === 0x00 && list[k + 1]?.op === 0x0b && k + 2 === list.length, 1);
   const frameSize = asserts.list.find(ins => ins.op === 0x41).value;
   const frameBase = asserts.list.find(ins => ins.op === 0x22).index;
   const [u] = asserts.found;
   add(asserts.index, { at: asserts.list[u].at, end: asserts.list[u].end, bytes: [...get(frameBase), ...i32(frameSize), 0x6a, 0x24, ...leb(0), ...i32(1)] });
+
+  // Effet sans matériau chez le joueur qui rejoint : lecture à l'adresse 176 puis unreachable ; l'appelant saute le dessin sur 0.
+  const technique = find(module, 'Material_GetTechnique(Material const*, unsigned char)', (list, k) => list[k].op === 0x00 && k + 2 === list.length, 1);
+  const techniqueFrame = technique.list.find(ins => ins.op === 0x41).value;
+  const techniqueBase = technique.list.find(ins => ins.op === 0x22).index;
+  const [t] = technique.found;
+  add(technique.index, { at: technique.body.code, end: technique.body.code, bytes: [...get(0), 0x45, 0x04, 0x40, ...i32(0), 0x0f, 0x0b] });
+  add(technique.index, { at: technique.list[t].at, end: technique.list[t].end, bytes: [0x1a, ...get(techniqueBase), ...i32(techniqueFrame), 0x6a, 0x24, ...leb(0), ...i32(0)] });
+
+  // L'hôte n'a pas de DObj pour un joueur distant : à terre, son point d'attache levait ERR_DROP et coupait la partie.
+  const noDObj = (list, k) => list[k].op === 0x41 && list[k].value === 1 && list[k + 1]?.op === 0x41
+    && list[k + 2]?.op === 0x41 && list[k + 2].value === 0 && list[k + 3]?.op === 0x10 && list[k + 3].index === comError && list[k + 4]?.op === 0x0b;
+  const tag = find(module, 'CachedTag_UpdateTagInternal(centity_s const*, cached_client_tag_t*, unsigned int, int, bool)', noDObj, 1);
+  const [g] = tag.found;
+  add(tag.index, { at: tag.list[g].at, end: tag.list[g + 4].at, bytes: [] });
 
   // Une commande déposée par la page (kbnet.command) passe à Cbuf_AddText, dans un tampon de 512 octets pris sur la pile.
   const STACK = [0x23, ...leb(0)];
