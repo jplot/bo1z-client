@@ -169,6 +169,7 @@ function barStart() {
   barTick(); barRun.timer = setInterval(barTick, 250);
 }
 function barDownload(data) {
+  if (data.groups) bar.groups = data.groups;
   const run = barRun; if (!run) return; const now = performance.now();
   if (!run.dl) { run.dl = { c0: data.completed, total: data.total, t: now };
     run.wd = Math.max(0, Math.min(.85, (data.total - data.completed) / REF_RATE / ((data.total - data.completed) / REF_RATE + ENGINE_S))); }
@@ -205,6 +206,7 @@ function warmEta() {
 function barTick() {
   const run = barRun; if (!run) return; const now = performance.now(), dt = (now - run.last) / 1000; run.last = now;
   const dl = run.dl, booted = Boolean(state.boot), e = engineFraction();
+  bar.engine = Math.max(bar.engine ?? 0, e);
   const d = booted || !dl ? (dl || booted ? 1 : 0) : (dl.completed - dl.c0) / Math.max(1, dl.total - dl.c0);
   const model = run.wd * d + (1 - run.wd) * e;
   let rem = null;

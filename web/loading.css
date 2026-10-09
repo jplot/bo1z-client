@@ -23,18 +23,22 @@ body:has(.kb-loading:not(.kb-gone)) :is(#settings, #notice) { display: none; }
 .kb-dot.wait { background: var(--amber); box-shadow: 0 0 6px var(--amber); animation: kb-pulse 1s ease-in-out infinite; }
 .kb-dot.ok { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
 .kb-dot.relay { background: var(--relay); box-shadow: 0 0 6px var(--relay); }
-.kb-steps { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 8px; }
-.kb-steps li { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 10px; font: 600 19px var(--ui); letter-spacing: .06em; color: var(--faint); }
-.kb-steps li::before { content: ''; width: 12px; height: 12px; margin-left: 4px; border: 2px solid #4a423a; border-radius: 50%; }
-.kb-steps li.now { color: var(--ink); }
-.kb-steps li.now::before { border-color: var(--amber); border-top-color: transparent; animation: kb-spin .8s linear infinite; }
-.kb-steps li.done { color: var(--muted); }
-.kb-steps li.done::before { border-color: var(--blood-hot); background: var(--blood-hot); }
-.kb-steps li small { font: 500 15px var(--ui); color: var(--muted); }
+.kb-status { display: flex; align-items: baseline; gap: 10px; width: min(780px, 88vw); margin-bottom: 10px; font: 600 19px var(--ui); letter-spacing: .06em; }
+.kb-status i { align-self: center; width: 12px; height: 12px; margin-left: 4px; border: 2px solid var(--amber); border-top-color: transparent; border-radius: 50%; animation: kb-spin .8s linear infinite; }
+.kb-status i.kb-ok { border-color: var(--blood-hot); background: var(--blood-hot); animation: none; }
+.kb-status small { margin-left: auto; font: 500 15px var(--ui); color: var(--muted); }
 @keyframes kb-spin { to { transform: rotate(360deg); } }
-.kb-bar { height: 4px; background: rgba(255, 255, 255, .1); margin-bottom: 16px; overflow: hidden; }
-.kb-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--blood), var(--amber)); box-shadow: 0 0 12px rgba(230, 168, 59, .6); transition: width .3s; }
-.kb-bar.kb-wait i { transition: none; animation: kb-slide 1.4s ease-in-out infinite; }
+.kb-timeline { display: flex; gap: 5px; width: min(780px, 88vw); margin-bottom: 16px; }
+.kb-part { flex: 1 1 0; min-width: max-content; display: grid; gap: 5px; }
+.kb-track { height: 4px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+.kb-track i { display: block; height: 100%; width: 0; background: var(--amber); transition: width .3s; }
+.kb-part:last-child .kb-track i { background: linear-gradient(90deg, var(--blood), var(--amber)); box-shadow: 0 0 12px rgba(230, 168, 59, .6); }
+.kb-part.done .kb-track i { background: var(--blood-hot); }
+.kb-part.kb-wait .kb-track i { width: 30% !important; transition: none; animation: kb-slide 1.4s ease-in-out infinite; }
+.kb-part span { font: 600 12px var(--ui); letter-spacing: .05em; color: var(--faint); white-space: nowrap; }
+.kb-part.now span { color: var(--ink); }
+.kb-part.done span { color: var(--muted); }
+.kb-part em { display: inline-block; min-width: 2.8em; font-style: normal; margin-left: 4px; color: var(--muted); }
 @keyframes kb-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
 .kb-prompt { margin: 0 0 14px; font: 600 20px var(--ui); letter-spacing: .14em; text-transform: uppercase; color: var(--amber); animation: kb-pulse 1.4s ease-in-out infinite; }
 .kb-prompt[hidden] { display: none; }
@@ -45,7 +49,7 @@ body:has(.kb-loading:not(.kb-gone)) :is(#settings, #notice) { display: none; }
 .kb-loading.kb-failed .kb-art { filter: grayscale(1) contrast(1.1) brightness(.7); }
 .kb-loading.kb-failed .kb-veil { background: linear-gradient(0deg, rgba(20,3,2,.97) 0%, rgba(20,3,2,.85) 45%, rgba(40,4,3,.45) 100%),
   radial-gradient(ellipse at 30% 60%, rgba(200, 38, 27, .25), transparent 60%); }
-.kb-loading.kb-failed :is(.kb-steps, .kb-bar, .kb-prompt, .kb-note, .kb-party, .kb-back, .kb-tip) { display: none; }
+.kb-loading.kb-failed :is(.kb-status, .kb-timeline, .kb-prompt, .kb-note, .kb-party, .kb-back, .kb-tip) { display: none; }
 .kb-error h3 { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; font: 700 26px/1.1 var(--ui); letter-spacing: .08em; text-transform: uppercase; }
 .kb-warn { display: inline-grid; place-items: center; width: 28px; height: 28px; background: var(--blood); font: 700 18px system-ui, sans-serif; }
 .kb-error p { margin: 0 0 8px; max-width: 560px; font-size: 17px; color: #e6dccd; }

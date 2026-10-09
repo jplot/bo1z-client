@@ -4,7 +4,7 @@ import './sha256.js';
 import { dxsInverse } from './dxs.js';
 const encoder = new TextEncoder();
 let metrics, root, cache, metadataHandle, lastProgress = 0;
-let classTotal, classDone, currentClass, started, transportChunk = 0;
+let classTotal, classDone, currentClass, started, transportChunk = 0, classFiles = [], fileDone = new Map();
 let directoryHandles;
 let inspected = null; // load5: { manifest, at } from inspect(), reused by download()
 
@@ -58,7 +58,11 @@ async function fileAt(base, path, create = false) {
 
 function validate(manifest) {
   // soundboot: the engine's late IWD scan kept half-written files for good, and Nacht's round-1 music (iw_22, iw_41) landed after it was asked for.
-  for (const f of manifest.files ?? []) if (f?.priority === 'background') f.priority = 'boot';
+  for (const f of manifest.files ?? []) if (f) {
+    const p = String(f.path).toLowerCase();
+    f.group = p.startsWith('web/shaders/') ? 'shaders' : p.startsWith('web/sound/') ? 'sounds' : f.priority === 'background' ? 'music' : p.startsWith('zone/') ? 'map' : 'textures';
+    if (f.priority === 'background') f.priority = 'boot';
+  }
   // size2 t3: Opus sounds need WebCodecs AudioDecoder + nested workers; otherwise use the original parts from the start.
   for (const f of manifest.files ?? []) if (f?.opus && f.fallback && (typeof AudioDecoder !== 'function' || typeof Worker !== 'function')) useFallback(f);
   if (manifest.schema !== 1 || !/^[a-f0-9]{64}$/.test(manifest.version) || !Array.isArray(manifest.files)) throw new Error('Unsupported manifest');
@@ -86,13 +90,20 @@ function saveMetadata() {
   metadataHandle.flush();
 }
 
+function credit(entry, bytes) { classDone += bytes; fileDone.set(entry, (fileDone.get(entry) ?? 0) + bytes); }
+
 function progress(force = false) {
   const now = performance.now();
   if (!force && now - lastProgress < 100) return;
   lastProgress = now;
   const seconds = (now - started) / 1000;
   const rate = metrics.networkBytes / Math.max(seconds, .001);
-  postMessage({ type: 'progress', priority: currentClass, completed: classDone, total: classTotal,
+  const groups = {};
+  for (const f of classFiles) {
+    const net = Array.isArray(f.br) ? f.br.reduce((sum, n) => sum + n, 0) : f.size, group = groups[f.group] ??= [0, 0];
+    group[0] += net * Math.min(1, (fileDone.get(f) ?? 0) / (f.size || 1)); group[1] += net;
+  }
+  postMessage({ type: 'progress', priority: currentClass, completed: classDone, total: classTotal, groups,
     bytes: metrics.networkBytes, mbps: rate / 1e6, eta: rate ? Math.max(0, classTotal - classDone) / rate : null });
 }
 
@@ -115,7 +126,7 @@ async function fetchDxs(entry, handle) {
           if (done) break;
           if (at + value.length > entry.dxs) throw new Error('File exceeds manifest size');
           blob.set(value, at); at += value.length; metrics.networkBytes += value.length;
-          const c = Math.floor(at * entry.size / entry.dxs) - credited; credited += c; classDone += c; progress();
+          const c = Math.floor(at * entry.size / entry.dxs) - credited; credited += c; credit(entry, c); progress();
         }
         if (at !== Math.min(entry.dxs, (k + 1) * transportChunk)) throw new Error('Truncated part');
       }
@@ -140,11 +151,11 @@ async function fetchDxs(entry, handle) {
           access.flush();
         } finally { access.close(); }
       } finally { release(); }
-      classDone += entry.size - credited;
+      credit(entry, entry.size - credited);
       metrics.verifiedFiles++; metrics.verifiedBytes += entry.size; metrics.dxsFiles = (metrics.dxsFiles ?? 0) + 1;
       break;
     } catch (error) {
-      classDone -= credited;
+      credit(entry, -credited);
       if (error.name !== 'QuotaExceededError') cdnFailed(error);
       if (error.name === 'QuotaExceededError' || attempt >= 3) throw error;
       await new Promise(resolve => setTimeout(resolve, 500 * attempt));
@@ -183,7 +194,7 @@ async function fetchOpus(entry, handle, base) {
         if (done) break;
         if (at + value.length > entry.opus) throw new Error('File exceeds manifest size');
         blob.set(value, at); at += value.length; metrics.networkBytes += value.length;
-        const c = Math.floor(at * entry.size / entry.opus / 2) - credited; credited += c; classDone += c; progress();
+        const c = Math.floor(at * entry.size / entry.opus / 2) - credited; credited += c; credit(entry, c); progress();
       }
       if (at !== Math.min(entry.opus, (k + 1) * transportChunk)) throw new Error('Truncated part');
     }
@@ -248,7 +259,7 @@ async function fetchOpus(entry, handle, base) {
                 if (wav.length !== outLen(job)) throw new Error('opus clip size mismatch');
                 write(wav, off); setRecord(m.id, off, wav.length, m.sha);
                 if (zip) { const c = new Uint8Array(4); new DataView(c.buffer).setUint32(0, m.crc >>> 0, true); for (const at of job.crc) write(c, at); }
-                doneBytes += wav.length; const c = Math.floor(entry.size / 2 + doneBytes / 2) - credited; credited += c; classDone += c; progress();
+                doneBytes += wav.length; const c = Math.floor(entry.size / 2 + doneBytes / 2) - credited; credited += c; credit(entry, c); progress();
                 feed(slot);
               } catch (error) { fail(error); }
             };
@@ -268,12 +279,12 @@ async function fetchOpus(entry, handle, base) {
       access.flush();
     } finally { access.close(); }
   } catch (error) {
-    classDone -= credited;
+    credit(entry, -credited);
     if (error.name === 'QuotaExceededError') throw error;
     metrics.opusFallback = String(error.message ?? error).slice(0, 200);
     useFallback(entry); return fetchFile(entry, base);
   }
-  classDone += entry.size - credited;
+  credit(entry, entry.size - credited);
   metrics.verifiedFiles++; metrics.verifiedBytes += entry.size;
   cache.files[entry.path].verified = true;
   await saveMetadata();
@@ -284,7 +295,7 @@ async function fetchFile(entry, base) {
   const existing = cache.files[entry.path];
   const same = existing?.sha256 === entry.sha256 && existing?.size === entry.size;
   if (same && existing.verified && (await handle.getFile()).size === entry.size) {
-    metrics.cachedFiles++; classDone += entry.size; progress(); return;
+    metrics.cachedFiles++; credit(entry, entry.size); progress(); return;
   }
   if (transportChunk && entry.opus && entry.fallback && Array.isArray(entry.br)) return fetchOpus(entry, handle, base);
   if (transportChunk && entry.dxs && Array.isArray(entry.br) && entry.br.length === Math.ceil(entry.dxs / transportChunk)) return fetchDxs(entry, handle);
@@ -298,7 +309,7 @@ async function fetchFile(entry, base) {
   try {
     await saveMetadata(); // Persist the expected hash before downloading; byte length is the resume cursor.
     if (!offset) access.truncate(0);
-    classDone += offset;
+    credit(entry, offset);
     let failures = 0, hashFailures = 0, verifyResets = 0;
     while (true) {
       let hasher = new StreamingSHA256();
@@ -322,7 +333,7 @@ async function fetchFile(entry, base) {
       if (unreadable) {
         if (verifyResets++) throw new Error('OPFS verification read made no progress');
         metrics.verifyResets = (metrics.verifyResets ?? 0) + 1;
-        access.truncate(0); classDone -= offset; offset = 0; progress(); continue;
+        access.truncate(0); credit(entry, -offset); offset = 0; progress(); continue;
       }
       let pending = 0;
       const writeBatch = () => {
@@ -334,7 +345,7 @@ async function fetchFile(entry, base) {
           if (!n) throw new Error('OPFS write made no progress');
           written += n; metrics.opfsWrites++;
         }
-        offset += written; classDone += written; pending = 0; progress();
+        offset += written; credit(entry, written); pending = 0; progress();
       };
       try {
         const pump = async (response, end) => {
@@ -365,7 +376,7 @@ async function fetchFile(entry, base) {
         } else if (offset < entry.size) {
           const response = await packFetch(entry, '', null, { headers: offset ? { Range: `bytes=${offset}-` } : {} });
           if (!response.ok) throw new Error(`${entry.path}: HTTP ${response.status}`);
-          if (offset && response.status === 200) { classDone -= offset; offset = 0; access.truncate(0); hasher = new StreamingSHA256(); }
+          if (offset && response.status === 200) { credit(entry, -offset); offset = 0; access.truncate(0); hasher = new StreamingSHA256(); }
           if (response.status === 206 && response.headers.get('Content-Range') !== `bytes ${offset}-${entry.size - 1}/${entry.size}`) throw new Error('Invalid resume response');
           if (Number(response.headers.get('Content-Length')) !== entry.size - offset) throw new Error('Invalid download length');
           await pump(response, entry.size);
@@ -375,7 +386,7 @@ async function fetchFile(entry, base) {
         if (error.name !== 'QuotaExceededError') cdnFailed(error);
         if (error.name === 'QuotaExceededError' || ++failures >= 3) throw error;
         // A part that failed midway resumes from its start (?part=k takes whole parts only); the prefix is re-hashed.
-        if (parts && offset % transportChunk) { classDone -= offset % transportChunk; offset -= offset % transportChunk; access.truncate(offset); }
+        if (parts && offset % transportChunk) { credit(entry, -(offset % transportChunk)); offset -= offset % transportChunk; access.truncate(offset); }
         await new Promise(resolve => setTimeout(resolve, 500 * failures));
         continue;
       }
@@ -387,7 +398,7 @@ async function fetchFile(entry, base) {
       if (digest !== entry.sha256) {
         cdnFailed(`SHA-256 mismatch: ${entry.path}`);
         if (++hashFailures >= 2) throw new Error(`SHA-256 mismatch: ${entry.path}`);
-        classDone -= offset; offset = 0;
+        credit(entry, -offset); offset = 0;
         access = await handle.createSyncAccessHandle(); access.truncate(0); continue;
       }
       metrics.verifiedFiles++; metrics.verifiedBytes += entry.size;
@@ -431,8 +442,8 @@ async function download({ bootOnly = false, parallel = 3, want = [], order = 'b2
     for (const priority of manifest.classes) {
       if (bootOnly && priority !== 'boot') break;
       if (priority === 'lazy') continue; // size2: lazy files ride with boot only when asked for (want)
-      currentClass = priority; classDone = 0;
-      const files = manifest.files.filter(f => f.priority === priority || (priority === 'boot' && f.priority === 'lazy' && want.includes(f.path)));
+      currentClass = priority; classDone = 0; fileDone = new Map();
+      const files = classFiles = manifest.files.filter(f => f.priority === priority || (priority === 'boot' && f.priority === 'lazy' && want.includes(f.path)));
       // overlap: the engine starts during the boot download and waits per file (src/web/browser/pack_gate.cpp), so fetch
       // boot files in the order it needs them. Shader packs go first: the link rate is shared, so a shader pack started
       // after the IWDs got a third of it and the engine waited 6.5-9.5 s at renderer init; first, it lands while the IWDs
@@ -444,6 +455,8 @@ async function download({ bootOnly = false, parallel = 3, want = [], order = 'b2
           // load4 (b2): sounds.pack (Opus, ~24 MB wire + decode) next: it lands during wasm start-up, before FS_Startup
           // needs the IWDs; after the IWDs it shared the link with the big zones and sound init waited 1-13 s.
           if ((order === 'b2' || order === 'b3') && p.startsWith('web/sound/')) return 0.5;
+          // loadbar: music/voices after the other IWDs, so the bar's segments fill in turn; FS_Startup waits for every IWD either way.
+          if (f.group === 'music') return 1.5;
           if (!p.includes('/') || p.startsWith('main/')) return order === 'b0' ? 0 : 1;
           if (p.startsWith('zone/') && f.size < 8e6) return 2;
           if (p.startsWith('web/')) return 3;

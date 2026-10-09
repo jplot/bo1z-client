@@ -25,7 +25,7 @@ root.innerHTML = `<div class="kb-art"></div><div class="kb-veil"></div>
   <a class="kb-back" href="/bo1z">Annuler</a>
   <div class="kb-box">
     <div class="kb-kicker"></div><h2 class="kb-name"></h2><div class="kb-party"></div>
-    <ol class="kb-steps"></ol><div class="kb-bar"><i></i></div>
+    <div class="kb-status"><i></i><span></span><small></small></div><div class="kb-timeline"></div>
     <p class="kb-prompt" hidden></p>
     <p class="kb-note" hidden><b>La souris n’a pas pu être capturée.</b> Clique encore une fois sur l’écran.</p>
     <div class="kb-error" hidden>
@@ -53,25 +53,17 @@ function progress() {
   const text = document.getElementById('transfer-details')?.textContent ?? '';
   const [, amount, unit] = /about (\d+) (s|min) left/.exec(text) ?? [];
   const eta = amount ? `encore ${amount} ${unit}` : /almost done/.test(text) ? 'presque fini' : '';
-  return { pct, detail: pct === null ? '' : [`${pct} %`, eta].filter(Boolean).join(' · ') };
+  return { pct, eta };
 }
 
-const steps = [
-  {
-    label: 'Téléchargement de la carte',
-    state: screen => (screen === 'download' ? 'now' : ['loading', 'ready', 'playing'].includes(screen) ? 'done' : 'wait'),
-    detail: screen => (screen === 'download' ? progress().detail : ''),
-  },
-  {
-    label: 'Chargement du moteur',
-    state: screen => (screen === 'loading' ? 'now' : ['ready', 'playing'].includes(screen) ? 'done' : 'wait'),
-    detail: screen => (screen === 'loading' ? progress().detail : ''),
-  },
-];
-for (const step of steps) {
-  step.item = document.createElement('li');
-  step.item.append(Object.assign(document.createElement('span'), { textContent: step.label }), document.createElement('small'));
-  $('.kb-steps').append(step.item);
+const PARTS = { shaders: 'Shaders', sounds: 'Sons', textures: 'Textures', music: 'Musique et voix', map: 'Carte et modèles', engine: 'Moteur' };
+const parts = {};
+function part(key) {
+  if (!parts[key]) {
+    parts[key] = Object.assign(document.createElement('div'), { innerHTML: `<div class="kb-track"><i></i></div><span>${PARTS[key]}<em></em></span>` });
+    $('.kb-timeline').append(parts[key]);
+  }
+  return parts[key];
 }
 const set = (element, key, value) => { if (element && element[key] !== value) element[key] = value; };
 
@@ -185,14 +177,19 @@ function render() {
   root.classList.toggle('kb-ready', screen === 'landing' || (screen === 'ready' && !linkPending()));
   set($('.kb-kicker'), 'textContent', roomName ? `Salon${query.get('private') === '1' ? ' privé' : ''} ${roomName}`
     : `Partie solo${query.get('horde') === '1' ? ' · Mode Enfer' : ''}`);
-  for (const step of steps) {
-    set(step.item, 'className', step.state(screen));
-    set(step.item.lastChild, 'textContent', step.detail(screen));
-  }
   const waiting = screen === 'playing' && guest && !joined;
-  $('.kb-bar').classList.toggle('kb-wait', waiting);
-  const width = waiting ? 30 : ['ready', 'playing'].includes(screen) ? 100 : ['download', 'loading'].includes(screen) ? progress().pct ?? 0 : 0;
-  set($('.kb-bar i').style, 'width', `${width}%`);
+  const bar = globalThis.five?.loadbar, full = ['ready', 'playing'].includes(screen);
+  if (bar?.groups) for (const key of Object.keys(PARTS)) {
+    if (key !== 'engine' && !bar.groups[key]) continue;
+    const [done, size] = bar.groups[key] ?? [];
+    const fill = full ? 1 : key === 'engine' ? bar.engine ?? 0 : done / size, node = part(key);
+    set(node, 'className', `kb-part ${fill >= 1 ? 'done' : fill > 0 ? 'now' : 'wait'}${key === 'engine' && waiting ? ' kb-wait' : ''}`);
+    set(node.firstChild.firstChild.style, 'width', `${Math.floor(fill * 100)}%`);
+    set(node.querySelector('em'), 'textContent', fill > 0 && fill < 1 ? `${Math.floor(fill * 100)} %` : '');
+  }
+  set($('.kb-status span'), 'textContent', full ? 'Prêt' : screen === 'loading' ? 'Chargement du moteur' : 'Téléchargement de la carte');
+  set($('.kb-status i'), 'className', full ? 'kb-ok' : '');
+  set($('.kb-status small'), 'textContent', full ? '' : progress().eta);
   set($('.kb-prompt'), 'hidden', !(screen === 'ready' || waiting));
   set($('.kb-prompt'), 'textContent', waiting ? 'Entrée dans la partie de l’hôte…'
     : linkPending() ? `En attente de la liaison avec ${hostName}…` : 'Clique ou appuie sur une touche pour entrer');
