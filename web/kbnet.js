@@ -123,7 +123,7 @@ function relay() {
 const HOST_LABEL = '10.0.0.1';
 
 function room(name) {
-  const signal = new WebSocket(socketUrl('/signal', { room: name, map: location.pathname.split('/').filter(Boolean).pop() }));
+  const signal = new WebSocket(socketUrl('/signal', { room: name, map: location.pathname.split('/').filter(Boolean).pop(), player: pseudo() }));
   const peers = new Map();
   let iceServers = [];
   let queue = Promise.resolve();
@@ -131,6 +131,7 @@ function room(name) {
 
   function attach(label, channel) {
     channel.binaryType = 'arraybuffer';
+    channel.onopen = () => { stats.linked = true; };
     channel.onmessage = ({ data }) => {
       const datagram = new Uint8Array(6 + data.byteLength);
       datagram.set(label.split('.').map(Number));

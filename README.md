@@ -5,7 +5,7 @@ Black Ops Zombies dans le navigateur, à plusieurs. Le point de départ est le p
 ## Organisation
 
 - `proxy.mjs` et `lib/` : le relais (site, salons, pont UDP, cache des données du jeu).
-- `web/` : le site, servi sous `/bo1z` et modifié directement. Le menu (`index.html`, `menu.js`, `menu.css`), la liste de nos cartes (`catalog.mjs`), le gabarit des pages de carte (`map.html`), le réseau (`kbnet.js`, `ring.js`), et le reste du site repris de vel.gg (`play.js`, `engine.js`, `artifacts/KisakBlack-web.mjs`…).
+- `web/` : le site, servi sous `/bo1z` et modifié directement. Le menu (`index.html`, `menu.js`, `menu.css`), la liste de nos cartes (`catalog.mjs`), le gabarit des pages de carte (`map.html`) et leur écran de chargement (`loading.js`, `loading.css`), le réseau (`kbnet.js`, `ring.js`), et le reste du site repris de vel.gg (`play.js`, `engine.js`, `artifacts/KisakBlack-web.mjs`…).
 - `engine/KisakBlack-web.wasm` : le moteur compilé par vel.gg à partir de KisakBlack (C++, GPL-3.0). Seul fichier qu'on ne peut modifier qu'en le patchant.
 - `patch/` : les patchs du wasm et le réécrivain qui les applique.
 - branche `assets` : les données du jeu (cartes, manifestes, images, caches de shaders, vidéos), voir « Jouer sans vel.gg ».
@@ -35,6 +35,8 @@ Deux façons de se rejoindre ; dans les deux cas, celui qui rejoint charge d'abo
 ### Salon (WebRTC)
 
 Le menu (`/bo1z`, où mène aussi la racine du site) liste à droite les salons ouverts avec leur carte et leurs joueurs. REJOINDRE ouvre la carte de l'hôte ; CRÉER UN SALON ouvre la carte sélectionnée en tant qu'hôte et copie le lien d'invitation (`/bo1z?room=<nom>`), qui propose de rejoindre avec son pseudo. Le pseudo est retenu par le navigateur et envoyé au jeu (`name`) avant la connexion ; sans pseudo, le serveur renomme les doublons « Unknown Soldier 1 ». Le Mode Enfer ne s'applique qu'en solo pour l'instant.
+
+La page de carte lance le téléchargement d'elle-même et affiche les étapes (liaison avec l'hôte, téléchargement, moteur, prêt) avec les pseudos du salon ; le seul geste demandé est le clic qui capture la souris. Chez celui qui rejoint, l'écran reste jusqu'à ce que les instantanés de l'hôte arrivent sans interruption, ce qui cache le chargement de la partie de l'hôte.
 
 Sans passer par le menu, tous les joueurs ouvrent la même adresse avec `?room=<nom>`, par exemple `http://127.0.0.1:8484/bo1z/nacht?room=soiree`. Le premier arrivé est l'hôte. Le serveur ne fait que présenter les navigateurs (`/signal`) ; les paquets du jeu passent ensuite directement de l'un à l'autre (sur le réseau local, ils ne quittent pas la box). Le moteur voit les joueurs sous des étiquettes `10.0.0.<n>` (l'hôte est `10.0.0.1`), puisque la page ne connaît pas les vraies adresses. `ICE_SERVERS` (JSON, STUN de Google par défaut) règle les serveurs utilisés pour traverser les box par internet ; deux joueurs derrière des box trop strictes auront besoin d'un serveur TURN.
 

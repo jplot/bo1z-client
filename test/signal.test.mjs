@@ -3,8 +3,8 @@ import { once } from 'node:events';
 import test from 'node:test';
 import { relay } from './relay.mjs';
 
-function join(httpPort, room, origin = `http://127.0.0.1:${httpPort}`, map = 'nacht') {
-  const socket = new WebSocket(`ws://127.0.0.1:${httpPort}/signal?room=${room}&map=${map}`, { headers: { origin } });
+function join(httpPort, room, origin = `http://127.0.0.1:${httpPort}`, map = 'nacht', player = '') {
+  const socket = new WebSocket(`ws://127.0.0.1:${httpPort}/signal?room=${room}&map=${map}&player=${player}`, { headers: { origin } });
   const messages = [];
   const waiters = [];
   socket.onmessage = ({ data }) => {
@@ -50,17 +50,17 @@ test('avec BO1Z_PASSWORD, le site exige le mot de passe', async t => {
   assert.equal((await fetch(url, { headers: { authorization: `Basic ${btoa('ami:zombies')}` } })).status, 200);
 });
 
-test('la racine mène au menu de vel.gg et /rooms liste les salons avec leur carte et leur nombre de joueurs', async t => {
+test('la racine mène au menu et /rooms liste les salons avec leur carte et les pseudos de leurs joueurs', async t => {
   const child = await relay(8614, 0);
   t.after(() => child.kill());
   const root = await fetch('http://127.0.0.1:8614/?room=soiree', { redirect: 'manual' });
   assert.equal(root.status, 302);
   assert.equal(root.headers.get('location'), '/bo1z?room=soiree');
-  const host = join(8614, 'soiree', undefined, 'kino');
+  const host = join(8614, 'soiree', undefined, 'kino', 'Hote');
   await host.next();
-  const guest = join(8614, 'soiree');
+  const guest = join(8614, 'soiree', undefined, 'nacht', 'Invite');
   await guest.next();
-  assert.deepEqual(await (await fetch('http://127.0.0.1:8614/rooms')).json(), [{ name: 'soiree', map: 'kino', players: 2 }]);
+  assert.deepEqual(await (await fetch('http://127.0.0.1:8614/rooms')).json(), [{ name: 'soiree', map: 'kino', players: 2, names: ['Hote', 'Invite'] }]);
   host.close();
   guest.close();
 });
