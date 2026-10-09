@@ -12,7 +12,7 @@ export const BASE = new URL('./', import.meta.url).pathname;
 //   the pack (deploy/cloudflare/upload.mjs --only site / --only <slug> --pack <slug>=<dir>). No Worker change.
 // zone: the map's zone/devmap name (<html data-map>, ?map=). slug: its page /<slug> (site/<slug>.html, written by
 // mkpages.mjs), its pack URLs /<slug>/manifest.json + /<slug>/pack/ (R2 packs/<slug>/, the Worker routes any slug),
-// its OPFS namespace pack-<slug> and its Options key <slug>-settings. Five is the exception (the first map): page /five,
+// its OPFS namespace pack-<slug>; the Options (bo1z-settings, set from the menu) are shared by every map. Five is the exception (the first map): page /five,
 // pack at the root (/manifest.json, /pack/ = R2 packs/five/), OPFS 'pack' - unchanged so returning players keep their
 // cache. horde: the pack also ships the horde overlay (pack/web-manifest-horde.json, tools/web/mkmodpack.mjs --manifest), so
 // the page runs horde with ?horde=1 (the landing's HORDE MODE toggle; landing.js ENTRIES carries the same flag).
@@ -36,7 +36,7 @@ const FIRST = 'zombie_pentagon';
 export const MAPS = Object.fromEntries(MAP_LIST.map(m => [m.zone, { ...m,
   root: m.zone === FIRST ? BASE : BASE + m.slug + '/', opfs: m.zone === FIRST ? 'pack' : 'pack-' + m.slug,
   programs: BASE + 'artifacts/' + m.slug + '-programs.json', art: BASE + 'art/loadscreen_' + m.zone + '.webp',
-  settings: m.slug + '-settings' }]));
+  settings: 'bo1z-settings' }]));
 const requested = globalThis.document?.documentElement?.dataset.map ??
   new URLSearchParams(globalThis.location?.search ?? '').get('map');
 export const mapId = Object.hasOwn(MAPS, requested ?? '') ? requested : FIRST;

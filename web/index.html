@@ -21,7 +21,10 @@
   <div class="app">
     <header>
       <div class="logo">ZOMBIES<span>.</span><small>BLACK OPS · DANS TON NAVIGATEUR</small></div>
-      <div class="chip"><label for="pseudo">Pseudo</label><input id="pseudo" maxlength="15" placeholder="Unknown Soldier" autocomplete="nickname"></div>
+      <div class="head-end">
+        <div class="chip"><label for="pseudo">Pseudo</label><input id="pseudo" maxlength="15" placeholder="Unknown Soldier" autocomplete="nickname"></div>
+        <button class="ghost head-btn" id="open-options" type="button">Options</button>
+      </div>
     </header>
 
     <div class="bar-top" role="tablist">
@@ -51,6 +54,21 @@
       <span class="credits">Moteur KisakBlack (GPL-3.0) · portage web vel.gg</span>
     </footer>
   </div>
+
+  <dialog class="joincode options" id="options" tabindex="-1">
+    <form method="dialog">
+      <h2>Options</h2>
+      <div class="opts">
+        <div class="opt-group">Commandes</div>
+        <label class="opt">Sensibilité de la souris<input type="range" id="o-sens" min="0.5" max="15" step="0.5" value="5"><output id="o-sens-v"></output></label>
+        <div class="opt-group">Son</div>
+        <label class="opt">Volume général<input type="range" id="o-vol" min="0" max="1" step="0.05" value="0.5"><output id="o-vol-v"></output></label>
+        <div class="opt-group">Affichage</div>
+        <div class="opt">Plein écran au lancement<button class="switch" id="o-full" type="button" role="switch" aria-checked="false"><i></i></button></div>
+      </div>
+      <div class="actions"><button class="ghost" type="submit">Retour</button></div>
+    </form>
+  </dialog>
 
   <dialog class="joincode" id="joincode">
     <form method="dialog">

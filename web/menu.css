@@ -30,6 +30,8 @@
   .app { position: relative; height: 100%; display: grid; grid-template-rows: auto auto 1fr auto; gap: 18px; padding: 28px 44px 22px; }
 
   header { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+  .head-end { display: flex; align-items: center; gap: 24px; }
+  .head-btn { align-self: stretch; }
   .logo { font: 44px/1 var(--display); letter-spacing: .04em; color: var(--ink); text-shadow: 0 2px 0 #000, 0 0 28px rgba(200, 38, 27, .45); }
   .logo span { color: var(--blood-hot); }
   .logo small { display: block; font: 600 13px/1 var(--ui); letter-spacing: .32em; color: var(--muted); margin-top: 6px; text-shadow: none; }
@@ -145,6 +147,18 @@
   .joincode h2 { margin: 0; font: 30px var(--display); letter-spacing: .04em; text-transform: uppercase; }
   .joincode .or { margin: 0; font: 600 14px var(--ui); letter-spacing: .3em; text-transform: uppercase; color: var(--faint); }
   .joincode .actions { display: flex; align-items: center; gap: 10px; }
+  .options form { justify-items: stretch; gap: 16px; width: min(560px, 86vw); text-align: left; }
+  .options h2 { text-align: center; }
+  .options:focus { outline: none; }
+  .opts { display: grid; gap: 12px; }
+  .opt-group { margin-top: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); font: 700 13px var(--ui); letter-spacing: .3em; text-transform: uppercase; color: var(--amber); }
+  .opt-group:first-child { margin-top: 0; }
+  .opt { display: grid; grid-template-columns: minmax(0, 1fr) 190px 64px; align-items: center; gap: 14px; font: 600 17px var(--ui); letter-spacing: .04em; }
+  .opt input[type=range] { width: 100%; accent-color: var(--amber); cursor: pointer; }
+  .opt output { text-align: right; font: 700 17px var(--ui); color: var(--amber); }
+  .opt .switch { grid-column: 2 / span 2; justify-self: end; }
+  .opt :is(input, .switch):focus-visible { outline: 1px solid var(--amber); outline-offset: 2px; }
+  .options .actions { justify-content: center; }
   .code { display: flex; gap: 10px; }
   .code input { width: 58px; height: 70px; padding: 0; border: 1px solid rgba(230, 168, 59, .5); background: rgba(0, 0, 0, .5); outline: none;
     font: 40px var(--display); color: var(--amber); text-align: center; caret-color: transparent; cursor: pointer; }

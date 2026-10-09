@@ -2,6 +2,7 @@ import { MAPS } from './catalog.mjs';
 
 const NAME_KEY = 'bo1z-name';
 const HELL_KEY = 'bo1z-horde';
+const SETTINGS_KEY = 'bo1z-settings';
 const HOST = '10.0.0.1';
 const ERA = { 'World at War': 'waw', 'Black Ops': 'bo' };
 // Que des consonnes : aucun mot ne peut se former, et pas de O ni de I à confondre avec 0 et 1.
@@ -258,6 +259,24 @@ async function refresh() {
   setTimeout(refresh, 2000);
 }
 
+function loadSettings() {
+  try {
+    return JSON.parse(read(SETTINGS_KEY)) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+// play.js relit cet objet au chargement de la carte ; il n'applique un volume enregistré que si volumeChosen est vrai.
+function saveSettings(change) {
+  write(SETTINGS_KEY, JSON.stringify({ ...loadSettings(), ...change }));
+}
+
+function showSettings() {
+  $('o-sens-v').textContent = Number($('o-sens').value).toFixed(1).replace('.', ',');
+  $('o-vol-v').textContent = `${Math.round($('o-vol').value * 100)} %`;
+}
+
 function setPseudo(value) {
   $('pseudo').value = value.replace(/[^\w-]/g, '').slice(0, 15);
   write(NAME_KEY, $('pseudo').value);
@@ -278,6 +297,20 @@ codeBoxes.forEach((box, k) => {
   box.addEventListener('paste', event => { event.preventDefault(); fillCode(k, event.clipboardData.getData('text')); });
   box.addEventListener('input', () => fillCode(k, box.value));
 });
+
+const saved = loadSettings();
+if (Number.isFinite(saved.sensitivity)) $('o-sens').value = saved.sensitivity;
+if (saved.volumeChosen === true && Number.isFinite(saved.volume)) $('o-vol').value = saved.volume;
+$('o-full').setAttribute('aria-checked', String(saved.fullscreen === true));
+showSettings();
+$('o-sens').addEventListener('input', () => { showSettings(); saveSettings({ sensitivity: Number($('o-sens').value) }); });
+$('o-vol').addEventListener('input', () => { showSettings(); saveSettings({ volume: Number($('o-vol').value), volumeChosen: true }); });
+$('o-full').addEventListener('click', () => {
+  const on = $('o-full').getAttribute('aria-checked') !== 'true';
+  $('o-full').setAttribute('aria-checked', String(on));
+  saveSettings({ fullscreen: on });
+});
+$('open-options').addEventListener('click', () => { $('options').showModal(); $('options').focus(); });
 
 $('pseudo').value = read(NAME_KEY) ?? '';
 $('pseudo').addEventListener('input', () => setPseudo($('pseudo').value));
