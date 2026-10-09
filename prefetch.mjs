@@ -5,29 +5,12 @@ import path from 'node:path';
 import { buffer } from 'node:stream/consumers';
 import { brotliDecompressSync } from 'node:zlib';
 import { CHUNK, cachePath, cached, cachedBytes, upstream } from './lib/cache.mjs';
-import { mapPage } from './lib/pages.mjs';
 import { MAPS } from './web/catalog.mjs';
 
 const HEADERS = { 'user-agent': 'Mozilla/5.0 (bo1z-lan build)', 'accept-encoding': 'br, gzip, zstd' };
-const REF = /["'`](\.{0,2}\/?[\w./-]+\.(?:m?js|css|json|wasm|webp|png|svg|woff2?))["'`]/g;
 const PARALLEL = 4;
 
-const site = new Set();
-const assets = new Set();
 const absent = [];
-
-async function crawl(urlPath, base = urlPath) {
-  if (site.has(urlPath)) return;
-  site.add(urlPath);
-  let text;
-  try { text = (await mapPage(urlPath)) ?? (await cachedBytes(urlPath)).toString(); } catch { return void absent.push(urlPath); }
-  for (const [, ref] of text.matchAll(REF)) {
-    const target = new URL(ref, `http://127.0.0.1${base}`).pathname;
-    if (!target.startsWith('/bo1z/')) continue;
-    if (/\.(m?js|css)$/.test(target)) await crawl(target);
-    else assets.add(target);
-  }
-}
 
 // download-worker.js : ?part=k si br compte un morceau par tranche, sinon d'un bloc ; un son Opus arrive en .kop
 // (son SHA-256 est celui du .kop), plus le fichier d'origine pour les navigateurs sans AudioDecoder.
@@ -73,7 +56,7 @@ async function store(spec) {
 async function mapUrls({ zone, slug, horde, first }) {
   const root = first ? '/bo1z/' : `/bo1z/${slug}/`;
   const urls = [
-    ...['row', 'hl', 'panel'].map(kind => `/bo1z/art/mapselect-${kind}-${slug}.webp`), `/bo1z/art/loadscreen_${zone}.webp`,
+    `/bo1z/art/mapselect-panel-${slug}.webp`, `/bo1z/art/loadscreen_${zone}.webp`,
   ];
   const optional = [`/bo1z/artifacts/${slug}-programs.json`, `/bo1z/artifacts/${zone}-pipelines.json`];
   const files = [];
@@ -109,22 +92,16 @@ async function runAll(tasks) {
   }));
 }
 
-const list = MAPS;
-console.log(`${list.length} cartes : ${list.map(map => map.slug).join(', ')}`);
-
-await crawl('/bo1z', '/bo1z/');
-for (const { slug } of list) await crawl(`/bo1z/${slug}`, '/bo1z/');
-const pages = new Set(list.map(({ slug }) => `/bo1z/${slug}`));
-const urls = [...site].filter(url => !pages.has(url)), optional = [...assets], files = new Map();
-for (const map of list) {
+console.log(`${MAPS.length} cartes : ${MAPS.map(map => map.slug).join(', ')}`);
+const urls = [], optional = [], files = new Map();
+for (const map of MAPS) {
   const found = await mapUrls(map);
   urls.push(...found.urls);
   optional.push(...found.optional);
   for (const spec of found.files) files.set(spec.url, spec);
 }
-urls.push(...['row', 'hl'].flatMap(kind => ['off', 'on'].map(state => `/bo1z/art/mapselect-${kind}-horde-${state}.webp`)));
 await runAll([
-  ...[...new Set(urls)].filter(url => !absent.includes(url)).map(url => () => fetchUrl(url, true)),
+  ...urls.map(url => () => fetchUrl(url, true)),
   ...optional.map(url => () => fetchUrl(url, false)),
   ...[...files.values()].map(spec => () => store(spec)),
 ]);
