@@ -103,6 +103,17 @@ function patches(module) {
   // pendant qu'un joueur rejoint, l'hôte qui quitte sa fenêtre laissait le défi sans réponse.
   const pause = find(module, 'CL_PauseGame(bool)', (_, k) => k === 0, 1);
   add(pause.index, { at: pause.body.code, end: pause.body.code, bytes: [...i32(0), 0x21, ...leb(0)] });
+
+  // Échap pendant le chargement qui suit connect (ni connexion ni partie en cours) levait
+  // Com_Error(ERR_DISCONNECT, "Bad server address") : la partie du joueur qui rejoint s'arrêtait 0,5 s après connect.
+  const comError = module.names.get('Com_Error(errorParm_t, char const*, ...)');
+  const escapeError = (list, k) => list[k].op === 0x41 && list[k + 1]?.op === 0x28 && list[k + 2]?.op === 0x45
+    && list[k + 3]?.op === 0x0d && list[k + 3].index === 0 && list[k + 4]?.op === 0x41 && list[k + 4].value === 3
+    && list[k + 5]?.op === 0x41 && list[k + 6]?.op === 0x41 && list[k + 6].value === 0
+    && list[k + 7]?.op === 0x10 && list[k + 7].index === comError && list[k + 8]?.op === 0x0b;
+  const keys = find(module, 'CL_KeyEvent(int, int, int, unsigned int)', escapeError, 1);
+  const [e] = keys.found;
+  add(keys.index, { at: keys.list[e].at, end: keys.list[e + 8].at, bytes: [] });
   return edits;
 }
 
