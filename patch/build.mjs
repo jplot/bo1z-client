@@ -107,10 +107,16 @@ function patches(module) {
   // (20 >> type) & 1 : bits 2 (NA_LOOPBACK) et 4 (NA_IP).
   add(connect.index, { at: connect.list[c].at, end: connect.list[c + 4].at, bytes: [...i32(20), ...loadType, 0x76, ...i32(1), 0x71] });
 
-  // Le serveur se fige quand le client local est en pause et qu'il compte au plus un client connecté (SV_CheckPaused) :
-  // pendant qu'un joueur rejoint, l'hôte qui quitte sa fenêtre laissait le défi sans réponse.
+  // Ni un menu (CL_PauseGame) ni le maintien d'intro de la page (cl_paused) ne doivent figer l'hôte : SV_CheckPaused inliné laissait le défi d'un joueur qui rejoint sans réponse.
   const pause = find(module, 'CL_PauseGame(bool)', (_, k) => k === 0, 1);
   add(pause.index, { at: pause.body.code, end: pause.body.code, bytes: [...i32(0), 0x21, ...leb(0)] });
+
+  const clPaused = pause.list.find((ins, k) => ins.op === 0x41 && pause.list[k + 1]?.op === 0x28).value;
+  const pausedSkip = (list, k) => list[k].op === 0x41 && list[k].value === clPaused && list[k + 1]?.op === 0x28
+    && list[k + 2]?.op === 0x28 && list[k + 2].offset === 24 && list[k + 3]?.op === 0x45 && list[k + 4]?.op === 0x0d && list[k + 4].index === 0;
+  const frame = find(module, '__wrap__Z8SV_Frameii', pausedSkip, 1);
+  const [f] = frame.found;
+  add(frame.index, { at: frame.list[f + 3].at, end: frame.list[f + 3].end, bytes: [0x1a, ...i32(1)] });
 
   // Échap pendant le chargement qui suit connect (ni connexion ni partie en cours) levait
   // Com_Error(ERR_DISCONNECT, "Bad server address") : la partie du joueur qui rejoint s'arrêtait 0,5 s après connect.
@@ -131,6 +137,22 @@ function patches(module) {
   const kill = find(module, 'CL_Connect_f()', localhost, 1);
   const [l] = kill.found;
   add(kill.index, { at: kill.list[l + 1].at, end: kill.list[l + 4].at, bytes: [0x1a, ...i32(1)] });
+
+  // Sans serveur local, le client charge des scripts du multijoueur classique absents des packs zombies (Server script compile error).
+  const beginLoad = module.names.get('Scr_BeginLoadScripts(scriptInstance_t, int)');
+  const scriptsWithoutServer = (list, k) => list[k].op === 0x2d && list[k].offset === 24 && list[k + 1]?.op === 0x22
+    && list[k + 2]?.op === 0x45 && list[k + 3]?.op === 0x04
+    && list.slice(k + 4, k + 30).some(ins => ins.op === 0x10 && ins.index === beginLoad);
+  const downloads = find(module, 'CL_DownloadsComplete(int)', scriptsWithoutServer, 1);
+  const [d] = downloads.found;
+  add(downloads.index, { at: downloads.list[d + 2].at, end: downloads.list[d + 2].end, bytes: [0x1a, ...i32(0)] });
+
+  // Assertions fatales : un second joueur en déclenche que le solo n'atteint jamais (Vec4IsNormalized dans CG_AddPlayerWeapon).
+  const asserts = find(module, 'Assert_MyHandler(char const*, int, int, char const*, ...)', (list, k) => list[k].op === 0x00 && list[k + 1]?.op === 0x0b && k + 2 === list.length, 1);
+  const frameSize = asserts.list.find(ins => ins.op === 0x41).value;
+  const frameBase = asserts.list.find(ins => ins.op === 0x22).index;
+  const [u] = asserts.found;
+  add(asserts.index, { at: asserts.list[u].at, end: asserts.list[u].end, bytes: [...get(frameBase), ...i32(frameSize), 0x6a, 0x24, ...leb(0), ...i32(1)] });
 
   // Une commande déposée par la page (kbnet.command) passe à Cbuf_AddText, dans un tampon de 512 octets pris sur la pile.
   const STACK = [0x23, ...leb(0)];
