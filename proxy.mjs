@@ -27,9 +27,13 @@ const TYPES = { '.wasm': 'application/wasm', '.mjs': 'text/javascript', '.js': '
 
 const rooms = signaling(ICE_SERVERS);
 
-// telemetry.js n'envoie rien tant que sa sonde GET ne reçoit pas { enabled: true } ; ses envois restent sur ce poste.
+// telemetry.js n'envoie rien tant que sa sonde GET ne reçoit pas { enabled: true } : seule une page ouverte sur ce poste l'obtient.
+// Sur Heroku, l'interlocuteur est toujours le routeur : chaque joueur y écrivait ses relevés sur le disque du serveur.
+const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 async function telemetry(req, res) {
-  if (req.method === 'GET') return res.writeHead(200, { 'content-type': 'application/json' }).end('{"enabled":true,"build":"bo1z-lan"}');
+  const local = LOOPBACK.has(req.socket.remoteAddress);
+  if (req.method === 'GET') return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ enabled: local, build: 'bo1z-lan' }));
+  if (!local) return res.writeHead(403).end();
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   await mkdir(TELEMETRY, { recursive: true });

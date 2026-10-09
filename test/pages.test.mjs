@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { networkInterfaces } from 'node:os';
 import test from 'node:test';
 import { relay } from './relay.mjs';
 
@@ -24,4 +25,14 @@ test('le menu et le site sont servis depuis web/ sous /bo1z, le moteur patché d
   const play = await fetch('http://127.0.0.1:8617/bo1z/play.js');
   assert.equal(play.headers.get('content-type'), 'text/javascript');
   assert.equal(await play.text(), await readFile(new URL('../web/play.js', import.meta.url), 'utf8'));
+});
+
+test('la télémétrie ne s’ouvre qu’aux pages de ce poste, pas à celles venues du réseau comme sur Heroku', async t => {
+  const lan = Object.values(networkInterfaces()).flat().find(address => address.family === 'IPv4' && !address.internal)?.address;
+  if (!lan) return t.skip('aucune adresse réseau hors de la boucle locale');
+  const child = await relay(8619, 0, { HOST: '0.0.0.0' });
+  t.after(() => child.kill());
+  assert.equal((await (await fetch('http://127.0.0.1:8619/bo1z/telemetry')).json()).enabled, true);
+  assert.equal((await (await fetch(`http://${lan}:8619/bo1z/telemetry`)).json()).enabled, false);
+  assert.equal((await fetch(`http://${lan}:8619/bo1z/telemetry`, { method: 'POST', body: '{}' })).status, 403);
 });
