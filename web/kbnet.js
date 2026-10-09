@@ -6,7 +6,7 @@ const NA_IP = 4;
 const DEFAULT_PORT = 3074;
 
 let memory = null;
-let socket = null;
+let transport = null;
 let stats = null;
 let rings = null;
 let mailbox = null;
@@ -74,8 +74,7 @@ export function command(text) {
 }
 
 export function forward(packet) {
-  if (socket.readyState !== WebSocket.OPEN) return stats.dropped++;
-  socket.send(packet);
+  if (!transport(packet)) return stats.dropped++;
   stats.sent++;
 }
 
@@ -86,25 +85,105 @@ function deliver(datagram) {
   stats[queued ? 'received' : 'dropped']++;
 }
 
+const socketUrl = (pathname, query = {}) => {
+  const url = new URL(pathname, location.href);
+  url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
+  return url;
+};
+
+// Rejoindre depuis une partie locale chargée : la connexion directe au démarrage lit l'état initial de travers.
+function connectWhenPlaying(address, ready) {
+  const waiting = setInterval(() => {
+    if (globalThis.five?.screen !== 'playing' || !ready()) return;
+    clearInterval(waiting);
+    command(`connect ${address}`);
+  }, 500);
+}
+
+function relay() {
+  const socket = new WebSocket(socketUrl('/kbnet'));
+  socket.binaryType = 'arraybuffer';
+  socket.onmessage = ({ data }) => deliver(new Uint8Array(data));
+  return packet => socket.readyState === WebSocket.OPEN && (socket.send(packet), true);
+}
+
+// Salon : chaque joueur ouvre un canal WebRTC vers l'hôte (10.0.0.1) ; le serveur ne fait que présenter les pages.
+// Les étiquettes 10.0.0.<n> tiennent lieu d'adresses pour le moteur ; le port est toujours celui que connect prend par défaut.
+const HOST_LABEL = '10.0.0.1';
+
+function room(name) {
+  const signal = new WebSocket(socketUrl('/signal', { room: name }));
+  const peers = new Map();
+  let iceServers = [];
+  let queue = Promise.resolve();
+  const tell = (to, data) => signal.send(JSON.stringify({ to, data }));
+
+  function attach(label, channel) {
+    channel.binaryType = 'arraybuffer';
+    channel.onmessage = ({ data }) => {
+      const datagram = new Uint8Array(6 + data.byteLength);
+      datagram.set(label.split('.').map(Number));
+      new DataView(datagram.buffer).setUint16(4, DEFAULT_PORT);
+      datagram.set(new Uint8Array(data), 6);
+      deliver(datagram);
+    };
+    peers.get(label).channel = channel;
+  }
+
+  function peer(label) {
+    if (!peers.has(label)) {
+      const connection = new RTCPeerConnection({ iceServers });
+      connection.onicecandidate = ({ candidate }) => candidate && tell(label, { candidate });
+      connection.ondatachannel = ({ channel }) => attach(label, channel);
+      peers.set(label, { connection, channel: null, candidates: [] });
+    }
+    return peers.get(label);
+  }
+
+  async function handle(message) {
+    if (message.type === 'welcome') {
+      iceServers = message.iceServers;
+      stats.label = message.you;
+      if (message.you === HOST_LABEL) return;
+      const { connection } = peer(HOST_LABEL);
+      attach(HOST_LABEL, connection.createDataChannel('kbnet', { ordered: false, maxRetransmits: 0 }));
+      await connection.setLocalDescription();
+      tell(HOST_LABEL, { description: connection.localDescription });
+      connectWhenPlaying(HOST_LABEL, () => peers.get(HOST_LABEL)?.channel?.readyState === 'open');
+    } else if (message.type === 'signal') {
+      const entry = peer(message.from);
+      const { description, candidate } = message.data;
+      if (candidate && !entry.connection.remoteDescription) return void entry.candidates.push(candidate);
+      if (candidate) return entry.connection.addIceCandidate(candidate);
+      await entry.connection.setRemoteDescription(description);
+      for (const pending of entry.candidates.splice(0)) await entry.connection.addIceCandidate(pending);
+      if (description.type !== 'offer') return;
+      await entry.connection.setLocalDescription();
+      tell(message.from, { description: entry.connection.localDescription });
+    } else if (message.type === 'leave') {
+      peers.get(message.label)?.connection.close();
+      peers.delete(message.label);
+    }
+  }
+  signal.onmessage = ({ data }) => { queue = queue.then(() => handle(JSON.parse(data))).catch(error => console.error('kbnet', error)); };
+
+  return packet => {
+    const channel = peers.get(packet.subarray(0, 4).join('.'))?.channel;
+    return channel?.readyState === 'open' && (channel.send(packet.subarray(6)), true);
+  };
+}
+
 if (!globalThis.WorkerGlobalScope) {
   stats = globalThis.kbnet = { sent: 0, received: 0, dropped: 0, command };
   rings = new SharedArrayBuffer(RING_BYTES);
   mailbox = new SharedArrayBuffer(MAILBOX_BYTES);
   shared = { rings, mailbox };
   setInterval(postCommands, 50);
-  const url = new URL('/kbnet', location.href);
-  url.protocol = 'ws:';
-  socket = new WebSocket(url);
-  socket.binaryType = 'arraybuffer';
-  socket.onmessage = ({ data }) => deliver(new Uint8Array(data));
-
-  // Rejoindre depuis une partie locale chargée : la connexion directe au démarrage lit l'état initial de travers.
-  const host = new URLSearchParams(location.search).get('connect');
-  if (host) {
-    const waiting = setInterval(() => {
-      if (globalThis.five?.screen !== 'playing') return;
-      clearInterval(waiting);
-      command(`connect ${host}`);
-    }, 500);
+  const query = new URLSearchParams(location.search);
+  if (query.get('room')) transport = room(query.get('room'));
+  else {
+    transport = relay();
+    if (query.get('connect')) connectWhenPlaying(query.get('connect'), () => true);
   }
 }

@@ -1,19 +1,10 @@
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { brotliDecompressSync, gunzipSync, zstdDecompressSync } from 'node:zlib';
-import { entryPath } from '../lib/cache.mjs';
+import { cachedBytes as cached } from '../lib/cache.mjs';
 import { instructions, leb, parse, rebuild, sleb } from './wasm.mjs';
 
 const ROOT = path.join(import.meta.dirname, '..');
 const ARTIFACTS = '/bo1z/artifacts/';
-const DECODERS = { br: brotliDecompressSync, gzip: gunzipSync, zstd: zstdDecompressSync };
-
-async function cached(urlPath) {
-  const file = entryPath(new URL(urlPath, 'http://127.0.0.1'));
-  const encoding = JSON.parse(await readFile(`${file}.json`, 'utf8')).headers['content-encoding'];
-  const raw = await readFile(file);
-  return encoding ? DECODERS[encoding](raw) : raw;
-}
 
 async function override(urlPath, content) {
   const file = path.join(ROOT, 'overrides', urlPath);

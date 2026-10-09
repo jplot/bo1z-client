@@ -1,24 +1,7 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import test from 'node:test';
-
-const ROOT = new URL('..', import.meta.url).pathname;
-
-function relay(httpPort, udpPort) {
-  const child = spawn(process.execPath, ['proxy.mjs'], {
-    cwd: ROOT,
-    env: { ...process.env, PORT: String(httpPort), NET_PORT: String(udpPort) },
-  });
-  return new Promise((resolve, reject) => {
-    let output = '';
-    child.stdout.on('data', chunk => {
-      output += chunk;
-      if (output.includes(`UDP ${udpPort} :`) && output.includes(`:${httpPort}/bo1z/`)) resolve(child);
-    });
-    child.on('exit', code => reject(new Error(`relais ${httpPort} arrêté (${code})`)));
-  });
-}
+import { relay } from './relay.mjs';
 
 function page(httpPort, origin = `http://127.0.0.1:${httpPort}`) {
   const socket = new WebSocket(`ws://127.0.0.1:${httpPort}/kbnet`, { headers: { origin } });

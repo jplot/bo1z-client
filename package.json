@@ -1,7 +1,13 @@
 {
   "name": "bo1z-lan",
   "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
+    "start": "node proxy.mjs",
+    "heroku-postbuild": "node patch/build.mjs",
     "test": "node --test 'test/*.test.mjs'"
   }
 }

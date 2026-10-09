@@ -1,15 +1,19 @@
 import http from 'node:http';
-import https from 'node:https';
-import { createReadStream, createWriteStream } from 'node:fs';
-import { appendFile, mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { createReadStream } from 'node:fs';
+import { appendFile, mkdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import { entryPath } from './lib/cache.mjs';
-import { attachNet } from './lib/net.mjs';
+import { cached, pick, upstream } from './lib/cache.mjs';
+import { udpBridge } from './lib/net.mjs';
+import { signaling } from './lib/signal.mjs';
 
-const UPSTREAM = 'vel.gg';
+const HOST = process.env.HOST ?? '127.0.0.1';
 const PORT = Number(process.env.PORT ?? 8484);
 const NET_PORT = Number(process.env.NET_PORT ?? 3074);
+const CACHE = process.env.CACHE !== '0';
+const PASSWORD = process.env.BO1Z_PASSWORD;
+const ICE_SERVERS = JSON.parse(process.env.ICE_SERVERS ?? '[{"urls":"stun:stun.l.google.com:19302"}]');
 const OVERRIDES = path.join(import.meta.dirname, 'overrides');
 const TELEMETRY = path.join(import.meta.dirname, 'telemetry');
 // Sans isolation cross-origin, pas de SharedArrayBuffer : les pthreads du moteur ne démarrent pas.
@@ -18,33 +22,12 @@ const ISOLATION = {
   'cross-origin-embedder-policy': 'require-corp',
   'cross-origin-resource-policy': 'same-origin',
 };
-const FORWARDED = ['content-type', 'content-encoding', 'content-range', 'accept-ranges', 'location'];
 const TYPES = { '.wasm': 'application/wasm', '.mjs': 'text/javascript', '.js': 'text/javascript' };
 
-const pick = headers => Object.fromEntries(FORWARDED.filter(name => headers[name]).map(name => [name, headers[name]]));
 const isFile = file => stat(file).then(info => info.isFile(), () => false);
-
-const upstream = (url, headers) => new Promise((resolve, reject) =>
-  https.get({ host: UPSTREAM, path: url.pathname + url.search, headers }, resolve).on('error', reject));
-
-// Le cache n'expire jamais : un wasm patché doit rester apparié aux scripts et aux packs de sa version.
-async function cached(url, headers) {
-  const file = entryPath(url);
-  try {
-    return { meta: JSON.parse(await readFile(`${file}.json`, 'utf8')), body: createReadStream(file) };
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-  }
-  const response = await upstream(url, headers);
-  const meta = { status: response.statusCode, headers: pick(response.headers) };
-  if (meta.status !== 200) return { meta, body: response };
-  await mkdir(path.dirname(file), { recursive: true });
-  const partial = `${file}.${process.hrtime.bigint()}.part`;
-  await pipeline(response, createWriteStream(partial));
-  await rename(partial, file);
-  await writeFile(`${file}.json`, JSON.stringify(meta));
-  return { meta, body: createReadStream(file) };
-}
+const digest = text => createHash('sha256').update(text).digest();
+const authorized = req => !PASSWORD
+  || timingSafeEqual(digest(Buffer.from(req.headers.authorization?.split(' ')[1] ?? '', 'base64').toString().replace(/^[^:]*:/, '')), digest(PASSWORD));
 
 // telemetry.js n'envoie rien tant que sa sonde GET ne reçoit pas { enabled: true } ; ses envois restent sur ce poste.
 async function telemetry(req, res) {
@@ -68,6 +51,7 @@ async function serve(req, res, status, headers, body) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://127.0.0.1');
   try {
+    if (!authorized(req)) return res.writeHead(401, { 'www-authenticate': 'Basic realm="bo1z"' }).end();
     if (url.pathname.endsWith('/telemetry')) return await telemetry(req, res);
     if (req.method !== 'GET' && req.method !== 'HEAD') return res.writeHead(405).end();
     const override = path.join(OVERRIDES, path.normalize(url.pathname));
@@ -76,8 +60,8 @@ const server = http.createServer(async (req, res) => {
       return await serve(req, res, 200, { 'content-type': type }, createReadStream(override));
     }
     const headers = { 'user-agent': req.headers['user-agent'], 'accept-encoding': req.headers['accept-encoding'] };
-    if (req.headers.range) {
-      const response = await upstream(url, { ...headers, range: req.headers.range });
+    if (req.headers.range || !CACHE) {
+      const response = await upstream(url, req.headers.range ? { ...headers, range: req.headers.range } : headers);
       return await serve(req, res, response.statusCode, pick(response.headers), response);
     }
     const { meta, body } = await cached(url, headers);
@@ -88,5 +72,11 @@ const server = http.createServer(async (req, res) => {
     else res.writeHead(502).end();
   }
 });
-attachNet(server, PORT, NET_PORT);
-server.listen(PORT, '127.0.0.1', () => console.log(`http://127.0.0.1:${PORT}/bo1z/`));
+
+const upgrades = { '/signal': signaling(ICE_SERVERS), ...(NET_PORT ? { '/kbnet': udpBridge(PORT, NET_PORT) } : {}) };
+server.on('upgrade', (req, socket) => {
+  const upgrade = upgrades[new URL(req.url, 'http://127.0.0.1').pathname];
+  if (upgrade) upgrade(req, socket);
+  else socket.destroy();
+});
+server.listen(PORT, HOST, () => console.log(`http://${HOST}:${PORT}/bo1z/`));
