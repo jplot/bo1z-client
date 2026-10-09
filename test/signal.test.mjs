@@ -68,7 +68,6 @@ test('la racine mène au menu et /rooms liste les salons avec leur carte et les 
   guest.close();
 });
 
-// Paquet déterministe : l'émetteur, son numéro, puis un remplissage de taille et de contenu dérivés des deux.
 const packet = (from, seq) => {
   const body = new Uint8Array(3 + (seq * 37) % 1200);
   body[0] = from; body[1] = seq >> 8; body[2] = seq & 0xff;
