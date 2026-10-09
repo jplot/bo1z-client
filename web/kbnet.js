@@ -174,6 +174,7 @@ function room(name) {
       await entry.connection.setLocalDescription();
       tell(message.from, { description: entry.connection.localDescription });
     } else if (message.type === 'leave') {
+      if (message.label === HOST_LABEL) stats.hostLeft = true;
       peers.get(message.label)?.connection.close();
       peers.delete(message.label);
     }

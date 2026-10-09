@@ -60,7 +60,7 @@ test('la racine mène au menu et /rooms liste les salons avec leur carte et les 
   await host.next();
   const guest = join(8614, 'soiree', undefined, 'nacht', 'Invite');
   await guest.next();
-  assert.deepEqual(await (await fetch('http://127.0.0.1:8614/rooms')).json(), [{ name: 'soiree', map: 'kino', players: 2, names: ['Hote', 'Invite'] }]);
+  assert.deepEqual(await (await fetch('http://127.0.0.1:8614/rooms')).json(), [{ name: 'soiree', map: 'kino', players: 2, members: [{ label: '10.0.0.1', pseudo: 'Hote' }, { label: '10.0.0.2', pseudo: 'Invite' }] }]);
   host.close();
   guest.close();
 });
