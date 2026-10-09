@@ -15,6 +15,7 @@ const CACHE = process.env.CACHE !== '0';
 const PASSWORD = process.env.BO1Z_PASSWORD;
 const ICE_SERVERS = JSON.parse(process.env.ICE_SERVERS ?? '[{"urls":"stun:stun.l.google.com:19302"}]');
 const OVERRIDES = path.join(import.meta.dirname, 'overrides');
+const LOBBY = path.join(import.meta.dirname, 'web', 'lobby.html');
 const TELEMETRY = path.join(import.meta.dirname, 'telemetry');
 // Sans isolation cross-origin, pas de SharedArrayBuffer : les pthreads du moteur ne démarrent pas.
 const ISOLATION = {
@@ -24,6 +25,7 @@ const ISOLATION = {
 };
 const TYPES = { '.wasm': 'application/wasm', '.mjs': 'text/javascript', '.js': 'text/javascript' };
 
+const rooms = signaling(ICE_SERVERS);
 const isFile = file => stat(file).then(info => info.isFile(), () => false);
 const digest = text => createHash('sha256').update(text).digest();
 const authorized = req => !PASSWORD
@@ -53,6 +55,8 @@ const server = http.createServer(async (req, res) => {
   try {
     if (!authorized(req)) return res.writeHead(401, { 'www-authenticate': 'Basic realm="bo1z"' }).end();
     if (url.pathname.endsWith('/telemetry')) return await telemetry(req, res);
+    if (url.pathname === '/rooms') return res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify(rooms.list()));
+    if (url.pathname === '/' || url.pathname === '/lobby') return await serve(req, res, 200, { 'content-type': 'text/html; charset=utf-8' }, createReadStream(LOBBY));
     if (req.method !== 'GET' && req.method !== 'HEAD') return res.writeHead(405).end();
     const override = path.join(OVERRIDES, path.normalize(url.pathname));
     if (await isFile(override)) {
@@ -73,7 +77,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-const upgrades = { '/signal': signaling(ICE_SERVERS), ...(NET_PORT ? { '/kbnet': udpBridge(PORT, NET_PORT) } : {}) };
+const upgrades = { '/signal': rooms.upgrade, ...(NET_PORT ? { '/kbnet': udpBridge(PORT, NET_PORT) } : {}) };
 server.on('upgrade', (req, socket) => {
   const upgrade = upgrades[new URL(req.url, 'http://127.0.0.1').pathname];
   if (upgrade) upgrade(req, socket);

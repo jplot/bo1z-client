@@ -93,13 +93,23 @@ const socketUrl = (pathname, query = {}) => {
 };
 
 // Rejoindre depuis une partie locale chargée : la connexion directe au démarrage lit l'état initial de travers.
-function connectWhenPlaying(address, ready) {
+function whenPlaying(ready, ...texts) {
   const waiting = setInterval(() => {
     if (globalThis.five?.screen !== 'playing' || !ready()) return;
     clearInterval(waiting);
-    command(`connect ${address}`);
+    texts.forEach(command);
   }, 500);
 }
+
+// Le serveur renomme les doublons « Unknown Soldier 1 » ; name part avant connect pour que la demande de connexion le porte.
+function pseudo() {
+  try {
+    return (localStorage.getItem('bo1z-name') ?? '').replace(/[^\w-]/g, '').slice(0, 15);
+  } catch {
+    return '';
+  }
+}
+const named = (...texts) => [...(pseudo() ? [`name ${pseudo()}`] : []), ...texts];
 
 function relay() {
   const socket = new WebSocket(socketUrl('/kbnet'));
@@ -113,7 +123,7 @@ function relay() {
 const HOST_LABEL = '10.0.0.1';
 
 function room(name) {
-  const signal = new WebSocket(socketUrl('/signal', { room: name }));
+  const signal = new WebSocket(socketUrl('/signal', { room: name, map: location.pathname.split('/').filter(Boolean).pop() }));
   const peers = new Map();
   let iceServers = [];
   let queue = Promise.resolve();
@@ -145,12 +155,12 @@ function room(name) {
     if (message.type === 'welcome') {
       iceServers = message.iceServers;
       stats.label = message.you;
-      if (message.you === HOST_LABEL) return;
+      if (message.you === HOST_LABEL) return whenPlaying(() => true, ...named());
       const { connection } = peer(HOST_LABEL);
       attach(HOST_LABEL, connection.createDataChannel('kbnet', { ordered: false, maxRetransmits: 0 }));
       await connection.setLocalDescription();
       tell(HOST_LABEL, { description: connection.localDescription });
-      connectWhenPlaying(HOST_LABEL, () => peers.get(HOST_LABEL)?.channel?.readyState === 'open');
+      whenPlaying(() => peers.get(HOST_LABEL)?.channel?.readyState === 'open', ...named(`connect ${HOST_LABEL}`));
     } else if (message.type === 'signal') {
       const entry = peer(message.from);
       const { description, candidate } = message.data;
@@ -184,6 +194,6 @@ if (!globalThis.WorkerGlobalScope) {
   if (query.get('room')) transport = room(query.get('room'));
   else {
     transport = relay();
-    if (query.get('connect')) connectWhenPlaying(query.get('connect'), () => true);
+    whenPlaying(() => true, ...named(...(query.get('connect') ? [`connect ${query.get('connect')}`] : [])));
   }
 }
