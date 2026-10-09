@@ -202,6 +202,8 @@ function room(name, hidden) {
     queue = queue.then(() => handle(JSON.parse(data))).catch(error => console.error('kbnet', error));
   };
   signal.onclose = () => { if (!stats.label) stats.signalFailed = true; };
+  // Chrome garde la page quittée dans son cache de navigation, WebSocket ouverte : le salon restait listé et l'hôte parti, jamais annoncé.
+  addEventListener('pagehide', () => signal.close());
 
   return packet => {
     const entry = peers.get(packet.subarray(0, 4).join('.'));
