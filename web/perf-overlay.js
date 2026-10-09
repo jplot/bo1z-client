@@ -1,4 +1,4 @@
-// fpsui: opt-in performance readout (?perf=1 on index/five/kino; landing.js keeps the query on the map page).
+// fpsui: opt-in performance readout (F3 on a map page, play.js).
 // Imported only when the query asks for it, so it costs nothing otherwise. Page-side only: it reads
 //  - engine presents: the GL owner's per-Present intervals from the engine's shared ring (engine.presentReader(),
 //    its own cursor, so telemetry's 10 s drain still sees every frame) -- this is the game's real frame time;

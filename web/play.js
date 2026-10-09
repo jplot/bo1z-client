@@ -11,8 +11,13 @@ const state = window.five = { timings: { pageLoad: performance.now() }, events: 
   console: [], consoleErrors: 0, scriptExceptions: 0, glErrors: 0,
   inputEvents: 0, inputDropped: 0, audioFrames: 0, interactive: false, rendererRoute };
 const telemetry = startTelemetry(state);
-// fpsui: ?perf=1 shows the performance readout (perf-overlay.js; not even fetched otherwise).
-if (new URLSearchParams(location.search).get('perf') === '1') import('./perf-overlay.js').then(m => m.startPerfOverlay()).catch(() => {});
+// fpsui: F3, caught on window before input.js and Chrome's find-next, shows or hides the performance readout (perf-overlay.js; not even fetched otherwise).
+addEventListener('keydown', event => {
+  if (event.key !== 'F3' || event.repeat) return;
+  event.preventDefault(); event.stopImmediatePropagation();
+  if (globalThis.__perfOverlay) { globalThis.__perfOverlay.stop(); delete globalThis.__perfOverlay; return; }
+  import('./perf-overlay.js').then(m => m.startPerfOverlay()).catch(() => {});
+}, true);
 const mb = bytes => (bytes / 1e6).toFixed(1) + ' MB';
 // What actually crosses the network: brotli/opus transport chunks (entry.br) where the pack has them, else the raw file.
 // manifest.total_bytes is the unpacked size on disk (~2.8x larger for Five), which overstated the download.

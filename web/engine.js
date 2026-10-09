@@ -464,7 +464,7 @@ export function createEngine(canvas, state) {
   let presentRing = null, defaultPresentReader = null;
   // Present intervals since the reader's previous call, read from the engine's shared
   // ring (src/web/gl/web_present.cpp). Plain memory reads: no wasm call, no lock.
-  // Each reader keeps its own cursor (telemetry's presentFrames and the ?perf=1 overlay).
+  // Each reader keeps its own cursor (telemetry's presentFrames and the F3 overlay).
   function presentReader() {
     let presentRead = null;
     return () => {
@@ -502,7 +502,7 @@ export function createEngine(canvas, state) {
   }
   return { ring, input,
     presentFrames() { return (defaultPresentReader ??= presentReader())(); },
-    // fpsui: an independent cursor over the same ring (the ?perf=1 overlay), so it never steals telemetry's intervals.
+    // fpsui: an independent cursor over the same ring (the F3 overlay), so it never steals telemetry's intervals.
     presentReader,
     // Periodic telemetry: counters and atomics only. mallinfo() is left to
     // memorySnapshot(): it walks the whole heap under the allocator lock.
