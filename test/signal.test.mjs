@@ -7,7 +7,10 @@ function join(httpPort, room, origin = `http://127.0.0.1:${httpPort}`, map = 'na
   const socket = new WebSocket(`ws://127.0.0.1:${httpPort}/signal?room=${room}&map=${map}&player=${player}`, { headers: { origin } });
   const messages = [];
   const waiters = [];
+  socket.binaryType = 'arraybuffer';
+  socket.frames = [];
   socket.onmessage = ({ data }) => {
+    if (typeof data !== 'string') return void socket.frames.push(new Uint8Array(data));
     const message = JSON.parse(data);
     const waiter = waiters.shift();
     if (waiter) waiter(message); else messages.push(message);
@@ -63,4 +66,46 @@ test('la racine mène au menu et /rooms liste les salons avec leur carte et les 
   assert.deepEqual(await (await fetch('http://127.0.0.1:8614/rooms')).json(), [{ name: 'soiree', map: 'kino', players: 2, members: [{ label: '10.0.0.1', pseudo: 'Hote' }, { label: '10.0.0.2', pseudo: 'Invite' }] }]);
   host.close();
   guest.close();
+});
+
+// Paquet déterministe : l'émetteur, son numéro, puis un remplissage de taille et de contenu dérivés des deux.
+const packet = (from, seq) => {
+  const body = new Uint8Array(3 + (seq * 37) % 1200);
+  body[0] = from; body[1] = seq >> 8; body[2] = seq & 0xff;
+  for (let i = 3; i < body.length; i++) body[i] = (from * 131 + seq * 7 + i) & 0xff;
+  return body;
+};
+const until = async (check, ms = 15000) => {
+  for (const end = Date.now() + ms; Date.now() < end; await new Promise(resolve => setTimeout(resolve, 20))) if (check()) return;
+  assert.fail('relais : paquets manquants');
+};
+
+test('le salon relaie les paquets binaires d’une page à l’autre, intacts, dans l’ordre et sans fuite', async t => {
+  const child = await relay(8618, 0);
+  t.after(() => child.kill());
+  const host = join(8618, 'relais');
+  await host.next();
+  const guests = [join(8618, 'relais'), join(8618, 'relais')];
+  for (const guest of guests) await guest.next();
+  const COUNT = 2000;
+  const send = (socket, to, from, seq) => socket.send(new Uint8Array([...to.split('.').map(Number), ...packet(from, seq)]));
+  for (let seq = 0; seq < COUNT; seq++) {
+    guests.forEach((guest, k) => send(guest, '10.0.0.1', 2 + k, seq));
+    guests.forEach((_, k) => send(host, `10.0.0.${2 + k}`, 1, seq));
+  }
+  await until(() => host.frames.length >= 2 * COUNT && guests.every(guest => guest.frames.length >= COUNT));
+
+  const check = (frames, sources) => {
+    const next = Object.fromEntries(sources.map(source => [source, 0]));
+    for (const frame of frames) {
+      const source = [...frame.subarray(0, 4)].join('.');
+      assert.ok(source in next, `paquet venu de ${source}`);
+      const body = frame.subarray(4);
+      assert.deepEqual(body, packet(body[0], next[source]++));
+    }
+    for (const source of sources) assert.equal(next[source], COUNT);
+  };
+  check(host.frames, ['10.0.0.2', '10.0.0.3']);
+  guests.forEach(guest => check(guest.frames, ['10.0.0.1']));
+  for (const socket of [host, ...guests]) socket.close();
 });
