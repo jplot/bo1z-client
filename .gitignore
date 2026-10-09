@@ -2,3 +2,4 @@ cache/
 overrides/
 node_modules/
 build/
+telemetry/

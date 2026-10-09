@@ -12,7 +12,7 @@ Puis ouvrir http://127.0.0.1:8484/bo1z dans Chrome.
 
 - `cache/` garde chaque réponse de vel.gg telle quelle, sans jamais la rafraîchir. Supprimer le dossier pour reprendre la version en ligne.
 - Un fichier posé à `overrides/<chemin>` remplace `/<chemin>`, par exemple `overrides/bo1z/artifacts/KisakBlack-web.wasm`.
-- La télémétrie du site est coupée (404 sur `/telemetry`).
+- La télémétrie du site reste sur ce poste : chaque envoi (plantage avec les 300 dernières lignes de la console du moteur, erreurs, fin de session) est ajouté à `telemetry/<PORT>.jsonl`.
 - `ws://127.0.0.1:<PORT>/kbnet` relie la page au port UDP `NET_PORT` (3074 par défaut, le port que le jeu prend quand `connect` n'en précise pas), ouvert sur le réseau local : le relais affiche au démarrage les adresses à donner aux autres joueurs.
 
 ## Patcher le moteur

@@ -1,7 +1,7 @@
 import http from 'node:http';
 import https from 'node:https';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { entryPath } from './lib/cache.mjs';
@@ -11,6 +11,7 @@ const UPSTREAM = 'vel.gg';
 const PORT = Number(process.env.PORT ?? 8484);
 const NET_PORT = Number(process.env.NET_PORT ?? 3074);
 const OVERRIDES = path.join(import.meta.dirname, 'overrides');
+const TELEMETRY = path.join(import.meta.dirname, 'telemetry');
 // Sans isolation cross-origin, pas de SharedArrayBuffer : les pthreads du moteur ne démarrent pas.
 const ISOLATION = {
   'cross-origin-opener-policy': 'same-origin',
@@ -45,6 +46,16 @@ async function cached(url, headers) {
   return { meta, body: createReadStream(file) };
 }
 
+// telemetry.js n'envoie rien tant que sa sonde GET ne reçoit pas { enabled: true } ; ses envois restent sur ce poste.
+async function telemetry(req, res) {
+  if (req.method === 'GET') return res.writeHead(200, { 'content-type': 'application/json' }).end('{"enabled":true,"build":"bo1z-lan"}');
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  await mkdir(TELEMETRY, { recursive: true });
+  await appendFile(path.join(TELEMETRY, `${PORT}.jsonl`), `${Buffer.concat(chunks)}\n`);
+  res.writeHead(204).end();
+}
+
 async function serve(req, res, status, headers, body) {
   res.writeHead(status, { ...headers, ...ISOLATION });
   if (req.method === 'HEAD') {
@@ -57,8 +68,7 @@ async function serve(req, res, status, headers, body) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://127.0.0.1');
   try {
-    // telemetry.js coupe tout envoi quand sa sonde ne reçoit pas de 200.
-    if (url.pathname.endsWith('/telemetry')) return res.writeHead(404).end();
+    if (url.pathname.endsWith('/telemetry')) return await telemetry(req, res);
     if (req.method !== 'GET' && req.method !== 'HEAD') return res.writeHead(405).end();
     const override = path.join(OVERRIDES, path.normalize(url.pathname));
     if (await isFile(override)) {
