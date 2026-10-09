@@ -82,7 +82,7 @@ const server = http.createServer(async (req, res) => {
     if (local) return await serve(req, res, 200, { 'content-type': TYPES[path.extname(local.file)] ?? 'application/octet-stream', 'content-length': local.size }, createReadStream(local.file));
     const page = await mapPage(url.pathname);
     if (page) return await serve(req, res, 200, { 'content-type': 'text/html', 'content-length': Buffer.byteLength(page) }, Readable.from([page]));
-    const headers = { 'user-agent': req.headers['user-agent'], 'accept-encoding': req.headers['accept-encoding'] };
+    const headers = Object.fromEntries(['user-agent', 'accept-encoding'].filter(name => req.headers[name]).map(name => [name, req.headers[name]]));
     if (!CACHE) {
       const response = await upstream(url, req.headers.range ? { ...headers, range: req.headers.range } : headers);
       return await serve(req, res, response.statusCode, pick(response.headers), response);
