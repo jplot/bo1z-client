@@ -1,10 +1,9 @@
-import { push, RING_BYTES, SLOT_DATA, SOCKS, take } from './ring.js';
+import { MAILBOX_BYTES, post, push, receive, RING_BYTES, SLOT_DATA, SOCKS, take } from './ring.js';
 
 // Chargé par la page et par chaque pthread : les pthreads n'ont pas de boucle d'événements fiable pendant la partie,
 // donc la page tient le WebSocket et dépose les paquets reçus dans une mémoire partagée qu'ils lisent à chaque frame.
 const NA_IP = 4;
 const DEFAULT_PORT = 3074;
-const MAILBOX_BYTES = 1024;
 
 let memory = null;
 let socket = null;
@@ -57,24 +56,17 @@ export function resolve(host, port, adr) {
   return 1;
 }
 
-// Boîte aux lettres à un seul message : longueur en tête, publiée après le texte, remise à 0 par le moteur une fois lu.
 export function nextCommand(buffer, size) {
-  const length = new Int32Array(mailbox, 0, 1);
-  const count = Math.min(Atomics.load(length, 0), size - 1);
-  if (!count) return 0;
-  const heap = new Uint8Array(memory.buffer);
-  heap.set(new Uint8Array(mailbox, 4, count), buffer);
-  heap[buffer + count] = 0;
-  Atomics.store(length, 0, 0);
-  return 1;
+  return Number(receive(mailbox, text => {
+    const heap = new Uint8Array(memory.buffer);
+    const count = Math.min(text.length, size - 1);
+    heap.set(text.subarray(0, count), buffer);
+    heap[buffer + count] = 0;
+  }));
 }
 
 function postCommands() {
-  const length = new Int32Array(mailbox, 0, 1);
-  if (!pendingCommands.length || Atomics.load(length, 0)) return;
-  const bytes = new TextEncoder().encode(`${pendingCommands.shift()}\n`);
-  new Uint8Array(mailbox, 4, bytes.length).set(bytes);
-  Atomics.store(length, 0, bytes.length);
+  if (pendingCommands.length && post(mailbox, new TextEncoder().encode(`${pendingCommands[0]}\n`))) pendingCommands.shift();
 }
 
 export function command(text) {
@@ -97,7 +89,7 @@ function deliver(datagram) {
 if (!globalThis.WorkerGlobalScope) {
   stats = globalThis.kbnet = { sent: 0, received: 0, dropped: 0, command };
   rings = new SharedArrayBuffer(RING_BYTES);
-  mailbox = new SharedArrayBuffer(4 + MAILBOX_BYTES);
+  mailbox = new SharedArrayBuffer(MAILBOX_BYTES);
   shared = { rings, mailbox };
   setInterval(postCommands, 50);
   const url = new URL('/kbnet', location.href);

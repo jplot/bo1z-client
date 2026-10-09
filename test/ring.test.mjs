@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { isMainThread, parentPort, Worker, workerData } from 'node:worker_threads';
-import { push, RING_BYTES, SOCKS, take } from '../web/ring.js';
+import { MAILBOX_BYTES, post, push, receive, RING_BYTES, SOCKS, take } from '../web/ring.js';
 
 const PACKETS = 100_000;
 const packet = (sock, seq) => {
@@ -33,21 +33,49 @@ function consume(rings, sock) {
   return null;
 }
 
+const COMMANDS = 50_000;
+const command = seq => new TextEncoder().encode(`set kbnet_${seq} ${'x'.repeat(seq % 900)}`);
+
+function write(mailbox) {
+  for (let seq = 0; seq < COMMANDS; seq++) while (!post(mailbox, command(seq)));
+}
+
+function read(mailbox) {
+  for (let seq = 0; seq < COMMANDS;) {
+    let text;
+    if (!receive(mailbox, bytes => { text = bytes.slice(); })) continue;
+    const expected = command(seq);
+    if (text.length !== expected.length || !text.every((byte, i) => byte === expected[i])) return `commande ${seq} corrompue`;
+    seq++;
+  }
+  return null;
+}
+
+const ROLES = { produce, consume, write, read };
+
 if (!isMainThread) {
-  const { role, rings, sock } = workerData;
-  parentPort.postMessage(role === 'produce' ? produce(rings) ?? null : consume(rings, sock));
+  const { role, shared, sock } = workerData;
+  parentPort.postMessage(ROLES[role](shared, sock) ?? null);
 } else {
-  test('la page et deux pthreads échangent 2 × 100 000 paquets sans perte ni corruption', { timeout: 60_000 }, async t => {
-    const rings = new SharedArrayBuffer(RING_BYTES);
+  async function race(t, shared, roles) {
     const workers = [];
     t.after(() => workers.forEach(worker => worker.terminate()));
     const run = data => new Promise((resolve, reject) => {
-      const worker = new Worker(new URL(import.meta.url), { workerData: { rings, ...data } });
+      const worker = new Worker(new URL(import.meta.url), { workerData: { shared, ...data } });
       workers.push(worker);
       worker.once('message', resolve).once('error', reject);
     });
-    const [producer, ...consumers] = [run({ role: 'produce' }), run({ role: 'consume', sock: 0 }), run({ role: 'consume', sock: 1 })];
-    const corrupted = consumers.map(consumer => consumer.then(error => error ?? new Promise(() => {})));
-    assert.equal(await Promise.race([Promise.all([producer, ...consumers]).then(() => null), ...corrupted]), null);
+    const [writer, ...readers] = roles.map(run);
+    const corrupted = readers.map(reader => reader.then(error => error ?? new Promise(() => {})));
+    return Promise.race([Promise.all([writer, ...readers]).then(() => null), ...corrupted]);
+  }
+
+  test('la page et deux pthreads échangent 2 × 100 000 paquets sans perte ni corruption', { timeout: 60_000 }, async t => {
+    const roles = [{ role: 'produce' }, { role: 'consume', sock: 0 }, { role: 'consume', sock: 1 }];
+    assert.equal(await race(t, new SharedArrayBuffer(RING_BYTES), roles), null);
+  });
+
+  test('la page passe 50 000 commandes au moteur par la boîte aux lettres sans en abîmer une', { timeout: 60_000 }, async t => {
+    assert.equal(await race(t, new SharedArrayBuffer(MAILBOX_BYTES), [{ role: 'write' }, { role: 'read' }]), null);
   });
 }

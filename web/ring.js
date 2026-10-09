@@ -31,3 +31,23 @@ export function take(rings, sock, copy) {
   Atomics.store(header, sock * 2 + 1, tail + 1);
   return true;
 }
+
+// Boîte aux lettres à un seul message : longueur en tête, publiée après le texte, remise à 0 par le lecteur une fois copié.
+export const MAILBOX_BYTES = 4 + 1024;
+
+export function post(mailbox, bytes) {
+  const length = new Int32Array(mailbox, 0, 1);
+  if (Atomics.load(length, 0)) return false;
+  new Uint8Array(mailbox, 4, bytes.length).set(bytes);
+  Atomics.store(length, 0, bytes.length);
+  return true;
+}
+
+export function receive(mailbox, copy) {
+  const length = new Int32Array(mailbox, 0, 1);
+  const count = Atomics.load(length, 0);
+  if (!count) return false;
+  copy(new Uint8Array(mailbox, 4, count));
+  Atomics.store(length, 0, 0);
+  return true;
+}
