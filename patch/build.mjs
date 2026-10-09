@@ -183,4 +183,8 @@ input = replaceOnce(input, "  on(document, 'keyup', event => {\n",
   "  on(document, 'paste', event => {\n    if (!active()) return;\n    event.preventDefault();\n    for (const char of event.clipboardData.getData('text')) if (char >= ' ') emit({ kind: 'char', char: char.codePointAt(0) });\n  });\n  on(document, 'keyup', event => {\n", 'coller');
 await override('/bo1z/input.js', input);
 
+// landing.js n'est pas en UTF-8 : l'import s'ajoute aux octets d'origine.
+await override('/bo1z/landing.js', Buffer.concat([await cached('/bo1z/landing.js'), Buffer.from("\nimport './multiplayer.js';\n")]));
+await copyFile(path.join(ROOT, 'web', 'multiplayer.js'), path.join(ROOT, 'overrides', 'bo1z', 'multiplayer.js'));
+
 console.log(`wasm patché : ${wasm.length} octets, ${IMPORTS.length} imports`);

@@ -29,7 +29,7 @@ Deux façons de se rejoindre ; dans les deux cas, celui qui rejoint charge d'abo
 
 ### Salon (WebRTC)
 
-Le lobby, à la racine du site (`http://127.0.0.1:8484/`, ou l'adresse Heroku), liste les salons ouverts, en crée un (nom, carte) et copie un lien d'invitation (`/?room=<nom>`). Le pseudo saisi dans le lobby est retenu par le navigateur et envoyé au jeu (`name`) avant la connexion ; sans pseudo, le serveur renomme les doublons « Unknown Soldier 1 ».
+Le menu de sélection des cartes de vel.gg (`/bo1z`, où mène aussi la racine du site) gagne une ligne MULTIJOUEUR. Son panneau liste les salons ouverts avec leur carte, en crée un (on choisit ensuite la carte dans le menu) et copie un lien d'invitation (`/bo1z?room=<nom>`) qui ouvre directement la carte de l'hôte. Le pseudo saisi dans le panneau est retenu par le navigateur et envoyé au jeu (`name`) avant la connexion ; sans pseudo, le serveur renomme les doublons « Unknown Soldier 1 ».
 
 Sans passer par le lobby, tous les joueurs ouvrent la même adresse avec `?room=<nom>`, par exemple `http://127.0.0.1:8484/bo1z/nacht?room=soiree`. Le premier arrivé est l'hôte. Le serveur ne fait que présenter les navigateurs (`/signal`) ; les paquets du jeu passent ensuite directement de l'un à l'autre (sur le réseau local, ils ne quittent pas la box). Le moteur voit les joueurs sous des étiquettes `10.0.0.<n>` (l'hôte est `10.0.0.1`), puisque la page ne connaît pas les vraies adresses. `ICE_SERVERS` (JSON, STUN de Google par défaut) règle les serveurs utilisés pour traverser les box par internet ; deux joueurs derrière des box trop strictes auront besoin d'un serveur TURN.
 

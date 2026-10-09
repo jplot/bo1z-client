@@ -50,12 +50,12 @@ test('avec BO1Z_PASSWORD, le site exige le mot de passe', async t => {
   assert.equal((await fetch(url, { headers: { authorization: `Basic ${btoa('ami:zombies')}` } })).status, 200);
 });
 
-test('le lobby est servi à la racine et liste les salons avec leur carte et leur nombre de joueurs', async t => {
+test('la racine mène au menu de vel.gg et /rooms liste les salons avec leur carte et leur nombre de joueurs', async t => {
   const child = await relay(8614, 0);
   t.after(() => child.kill());
-  const page = await fetch('http://127.0.0.1:8614/');
-  assert.equal(page.status, 200);
-  assert.match(page.headers.get('content-type'), /^text\/html/);
+  const root = await fetch('http://127.0.0.1:8614/?room=soiree', { redirect: 'manual' });
+  assert.equal(root.status, 302);
+  assert.equal(root.headers.get('location'), '/bo1z?room=soiree');
   const host = join(8614, 'soiree', undefined, 'kino');
   await host.next();
   const guest = join(8614, 'soiree');
