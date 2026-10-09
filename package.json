@@ -1,0 +1,7 @@
+{
+  "name": "bo1z-lan",
+  "private": true,
+  "devDependencies": {
+    "binaryen": "123.0.0"
+  }
+}
