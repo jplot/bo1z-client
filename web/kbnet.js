@@ -121,6 +121,8 @@ function relay() {
 // Salon : chaque joueur ouvre un canal WebRTC vers l'hôte (10.0.0.1) ; le serveur ne fait que présenter les pages.
 // Les étiquettes 10.0.0.<n> tiennent lieu d'adresses pour le moteur ; le port est toujours celui que connect prend par défaut.
 const HOST_LABEL = '10.0.0.1';
+// Une liaison directe s'ouvre en une seconde environ : au-delà, l'invité passe par le relais du serveur (/signal).
+const RELAY_AFTER = 5000;
 
 function room(name) {
   const signal = new WebSocket(socketUrl('/signal', { room: name, map: location.pathname.split('/').filter(Boolean).pop(), player: pseudo() }));
@@ -128,17 +130,26 @@ function room(name) {
   let iceServers = [];
   let queue = Promise.resolve();
   const tell = (to, data) => signal.send(JSON.stringify({ to, data }));
+  signal.binaryType = 'arraybuffer';
+
+  function receive(label, payload) {
+    const datagram = new Uint8Array(6 + payload.byteLength);
+    datagram.set(label.split('.').map(Number));
+    new DataView(datagram.buffer).setUint16(4, DEFAULT_PORT);
+    datagram.set(payload, 6);
+    deliver(datagram);
+  }
+
+  function askRelay() {
+    if (stats.relayAsked || peers.get(HOST_LABEL)?.channel?.readyState === 'open') return;
+    stats.relayAsked = true;
+    tell(HOST_LABEL, { relay: 'hello' });
+  }
 
   function attach(label, channel) {
     channel.binaryType = 'arraybuffer';
-    channel.onopen = () => { stats.linked = true; };
-    channel.onmessage = ({ data }) => {
-      const datagram = new Uint8Array(6 + data.byteLength);
-      datagram.set(label.split('.').map(Number));
-      new DataView(datagram.buffer).setUint16(4, DEFAULT_PORT);
-      datagram.set(new Uint8Array(data), 6);
-      deliver(datagram);
-    };
+    channel.onopen = () => { stats.linked = true; stats.relayed = false; };
+    channel.onmessage = ({ data }) => receive(label, new Uint8Array(data));
     peers.get(label).channel = channel;
   }
 
@@ -147,8 +158,8 @@ function room(name) {
       const connection = new RTCPeerConnection({ iceServers });
       connection.onicecandidate = ({ candidate }) => candidate && tell(label, { candidate });
       connection.ondatachannel = ({ channel }) => attach(label, channel);
-      connection.onconnectionstatechange = () => { if (label === HOST_LABEL && connection.connectionState === 'failed') stats.linkFailed = true; };
-      peers.set(label, { connection, channel: null, candidates: [] });
+      connection.onconnectionstatechange = () => { if (label === HOST_LABEL && connection.connectionState === 'failed') askRelay(); };
+      peers.set(label, { connection, channel: null, candidates: [], relay: false });
     }
     return peers.get(label);
   }
@@ -162,10 +173,17 @@ function room(name) {
       attach(HOST_LABEL, connection.createDataChannel('kbnet', { ordered: false, maxRetransmits: 0 }));
       await connection.setLocalDescription();
       tell(HOST_LABEL, { description: connection.localDescription });
-      whenPlaying(() => peers.get(HOST_LABEL)?.channel?.readyState === 'open', ...named(`connect ${HOST_LABEL}`));
+      setTimeout(askRelay, RELAY_AFTER);
+      whenPlaying(() => stats.linked, ...named(`connect ${HOST_LABEL}`));
     } else if (message.type === 'signal') {
       const entry = peer(message.from);
-      const { description, candidate } = message.data;
+      const { description, candidate, relay } = message.data;
+      if (relay === 'hello') return void (entry.relay = true, tell(message.from, { relay: 'ack' }));
+      if (relay === 'ack') {
+        entry.relay = true;
+        if (entry.channel?.readyState !== 'open') Object.assign(stats, { linked: true, relayed: true });
+        return;
+      }
       if (candidate && !entry.connection.remoteDescription) return void entry.candidates.push(candidate);
       if (candidate) return entry.connection.addIceCandidate(candidate);
       await entry.connection.setRemoteDescription(description);
@@ -179,12 +197,21 @@ function room(name) {
       peers.delete(message.label);
     }
   }
-  signal.onmessage = ({ data }) => { queue = queue.then(() => handle(JSON.parse(data))).catch(error => console.error('kbnet', error)); };
+  signal.onmessage = ({ data }) => {
+    if (typeof data !== 'string') return receive(new Uint8Array(data, 0, 4).join('.'), new Uint8Array(data, 4));
+    queue = queue.then(() => handle(JSON.parse(data))).catch(error => console.error('kbnet', error));
+  };
   signal.onclose = () => { if (!stats.label) stats.signalFailed = true; };
 
   return packet => {
-    const channel = peers.get(packet.subarray(0, 4).join('.'))?.channel;
-    return channel?.readyState === 'open' && (channel.send(packet.subarray(6)), true);
+    const entry = peers.get(packet.subarray(0, 4).join('.'));
+    if (entry?.channel?.readyState === 'open') return entry.channel.send(packet.subarray(6)), true;
+    if (!entry?.relay || signal.readyState !== WebSocket.OPEN) return false;
+    const frame = new Uint8Array(packet.length - 2);
+    frame.set(packet.subarray(0, 4));
+    frame.set(packet.subarray(6), 4);
+    signal.send(frame);
+    return true;
   };
 }
 

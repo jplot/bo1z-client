@@ -75,7 +75,7 @@ for (const step of steps) {
 }
 const set = (element, key, value) => { if (element && element[key] !== value) element[key] = value; };
 
-// La liaison WebRTC s'établit en une seconde environ : passé 30 s, elle n'arrivera plus, et l'invité jouerait seul sans le savoir.
+// Liaison directe ou relais du serveur : passé 30 s sans l'une ni l'autre, l'invité jouerait seul sans le savoir.
 const LINK_TIMEOUT = 30000;
 const started = performance.now();
 let hostName = 'l’hôte', failed = false;
@@ -92,7 +92,7 @@ function roomProblem() {
     return { title: 'L’hôte a quitté la partie', text: `${hostName} a fermé le salon ${roomName} : la partie s’est arrêtée.`,
       hint: 'La manche en cours vivait chez lui et ne peut pas reprendre.' };
   }
-  if (net.linked || !(net.linkFailed || performance.now() - started > LINK_TIMEOUT)) return null;
+  if (net.linked || performance.now() - started <= LINK_TIMEOUT) return null;
   return { title: `Impossible de rejoindre ${hostName}`, text: 'La liaison directe avec l’hôte n’a pas pu s’établir.',
     hint: 'Vos box bloquent sûrement la connexion directe. Sur le même réseau, ça passe ; par internet, il faudra un serveur relais (TURN).', primary: ['Réessayer', reload[1]] };
 }
@@ -110,7 +110,7 @@ function engineProblem() {
           hint: 'Ferme les autres onglets de ce site, libère de l’espace disque, puis reprends.', primary: retry('Reprendre') };
       }
       return { title: 'Téléchargement interrompu', text: `La connexion s’est coupée${pct ? ` à ${pct} %` : ''} du téléchargement de ${map.name}.`,
-        hint: 'Rien n’est perdu : la reprise repart de là.', primary: retry('Reprendre') };
+        hint: 'Le téléchargement reprendra là où il s’est arrêté.', primary: retry('Reprendre') };
     case 'quota':
       return { title: 'Plus assez de place', text: need ? `Il faut ${need} ${unit}o libres pour installer ${map.name}.` : `Le navigateur n’a plus assez de place pour installer ${map.name}.`,
         hint: 'Libère de l’espace disque, ou efface les données de ce site dans les réglages du navigateur, puis réessaie.', primary: retry('Réessayer') };
@@ -125,10 +125,10 @@ function engineProblem() {
     case 'engine':
       if (/memory|mémoire/i.test(message)) {
         return { title: 'Pas assez de mémoire', text: `${map.name} n’a pas pu réserver assez de mémoire.`,
-          hint: 'Ferme d’autres onglets et applications, puis recharge : la carte est déjà téléchargée.', primary: reload, report: true };
+          hint: 'Ferme d’autres onglets et applications, puis recharge.', primary: reload, report: true };
       }
       return { title: 'Le jeu a planté', text: 'Le moteur s’est arrêté sur une erreur.',
-        hint: 'Recharge pour relancer la carte : elle est déjà téléchargée. Si ça recommence, copie le rapport pour signaler le problème.', primary: reload, report: true };
+        hint: 'Recharge pour relancer la carte. Si ça recommence, copie le rapport pour signaler le problème.', primary: reload, report: true };
     default:
       return { title: 'Erreur', text: message, primary: reload };
   }
@@ -196,7 +196,9 @@ function render() {
   set($('.kb-prompt'), 'hidden', !(screen === 'ready' || waiting));
   set($('.kb-prompt'), 'textContent', waiting ? 'Entrée dans la partie de l’hôte…'
     : linkPending() ? `En attente de la liaison avec ${hostName}…` : 'Clique ou appuie sur une touche pour entrer');
-  set($('.kb-dot'), 'className', `kb-dot ${kbnet()?.linked ? 'ok' : 'wait'}`);
+  const link = kbnet()?.relayed ? 'relay' : kbnet()?.linked ? 'ok' : 'wait';
+  set($('.kb-dot'), 'className', `kb-dot ${link}`);
+  set($('.kb-dot'), 'title', { relay: 'connecté via le relais (un peu plus de latence)', ok: 'liaison directe', wait: 'liaison en cours' }[link]);
   const notice = document.getElementById('notice');
   set($('.kb-note'), 'hidden', !(screen === 'ready' && notice && !notice.hidden && /declined/.test(notice.textContent)));
 }

@@ -1,5 +1,5 @@
 .kb-loading {
-  --ink: #f3ede2; --muted: #b3a998; --faint: #7d7468; --blood: #c8261b; --blood-hot: #e8382b; --amber: #e6a83b; --ok: #7cc47f; --line: rgba(255, 240, 220, .1);
+  --ink: #f3ede2; --muted: #b3a998; --faint: #7d7468; --blood: #c8261b; --blood-hot: #e8382b; --amber: #e6a83b; --ok: #7cc47f; --relay: #6aa9e8; --line: rgba(255, 240, 220, .1);
   --display: 'Black Ops One', Impact, sans-serif; --ui: 'Barlow Condensed', 'Arial Narrow', sans-serif; --text: 'Barlow', system-ui, sans-serif;
   position: fixed; inset: 0; z-index: 50; display: grid; grid-template-columns: minmax(0, 640px) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr);
   column-gap: 4vw; padding: 5vh 4vw 7vh 6vw; background: #000; color: var(--ink);
@@ -22,6 +22,7 @@ body:has(.kb-loading:not(.kb-gone)) :is(#settings, #notice) { display: none; }
 .kb-dot { width: 8px; height: 8px; border-radius: 50%; }
 .kb-dot.wait { background: var(--amber); box-shadow: 0 0 6px var(--amber); animation: kb-pulse 1s ease-in-out infinite; }
 .kb-dot.ok { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.kb-dot.relay { background: var(--relay); box-shadow: 0 0 6px var(--relay); }
 .kb-steps { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 8px; }
 .kb-steps li { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 10px; font: 600 19px var(--ui); letter-spacing: .06em; color: var(--faint); }
 .kb-steps li::before { content: ''; width: 12px; height: 12px; margin-left: 4px; border: 2px solid #4a423a; border-radius: 50%; }
