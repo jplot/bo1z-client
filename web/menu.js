@@ -14,7 +14,6 @@ const art = map => `art/loadscreen_${map.zone}.webp`;
 const panel = map => `art/mapselect-panel-${map.slug}.webp`;
 const bySlug = slug => MAPS.find(map => map.slug === slug);
 const mapUrl = (map, params = {}) => `${map.slug}${Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''}`;
-const inviteUrl = name => `${location.origin}/bo1z?room=${encodeURIComponent(name)}`;
 const isFull = room => room.players >= 4;
 const el = (tag, className, html = '') => Object.assign(document.createElement(tag), { className, innerHTML: html });
 const eraTitle = era => Object.assign(document.createElement('h3'), { className: `era-title ${ERA[era]}`, textContent: era });
@@ -37,11 +36,10 @@ function pick(map) {
 }
 
 // Le premier arrivé d'un salon en est l'hôte : un code déjà pris ferait rejoindre la partie d'un autre, sur sa carte.
-async function createRoom(map) {
+function createRoom(map) {
   let name;
   do name = Array.from({ length: 4 }, () => CODE[Math.floor(Math.random() * CODE.length)]).join('');
   while (rooms.some(room => room.name === name));
-  await navigator.clipboard?.writeText(inviteUrl(name)).catch(() => {});
   go(map, { room: name });
 }
 
