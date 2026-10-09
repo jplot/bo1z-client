@@ -160,7 +160,10 @@ function setBar(id, fraction) {
 // download progress from the expected download time at the calibration link (90 Mbit/s) vs ENGINE_S, so a cold
 // visit is ~60% download / ~40% load and a warm visit is 100% load. ETA = boot bytes left / measured rate + (1 - E) *
 // ENGINE_S, smoothed; ENGINE_S = engine time from start to map-loaded (warm Five ~30 s from the click; cold tail after boot-ready ~20-23 s at 90 Mbit).
-const ENGINE_S = map.engineS ?? 27, REF_RATE = 90e6 / 8;
+// enginetime: this machine's own engine time for the map, kept from its last load that had every file at callMain (the 27 s default took ~7 s on the test machine).
+const ENGINE_KEY = 'bo1z-engine';
+const measuredEngineS = (() => { try { return JSON.parse(localStorage.getItem(ENGINE_KEY))?.[map.slug]; } catch { return undefined; } })();
+const ENGINE_S = Number.isFinite(measuredEngineS) ? measuredEngineS : map.engineS ?? 27, REF_RATE = 90e6 / 8;
 const bar = state.loadbar = { pct: 0, eta: null, phase: '', samples: [] };
 let barRun = null;
 function barStart() {
@@ -258,6 +261,10 @@ function progressText(data) {
 }
 function ready() {
   if (state.screen === 'error' && state.errorKind === 'engine') return;
+  const t = state.timings;
+  if (t.mapLoaded && t.bootReady <= t.callMain) {
+    try { localStorage.setItem(ENGINE_KEY, JSON.stringify({ ...JSON.parse(localStorage.getItem(ENGINE_KEY)), [map.slug]: (t.mapLoaded - t.engineStart) / 1000 })); } catch { /* Optional estimate cache. */ }
+  }
   barDone(); screen('ready', '');
   activationButton(PRESS);
 }
