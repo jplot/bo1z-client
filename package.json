@@ -1,6 +1,9 @@
 {
   "name": "bo1z-lan",
   "private": true,
+  "scripts": {
+    "test": "node --test 'test/*.test.mjs'"
+  },
   "devDependencies": {
     "binaryen": "123.0.0"
   }

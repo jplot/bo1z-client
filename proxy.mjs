@@ -5,9 +5,11 @@ import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { entryPath } from './lib/cache.mjs';
+import { attachNet } from './lib/net.mjs';
 
 const UPSTREAM = 'vel.gg';
 const PORT = Number(process.env.PORT ?? 8484);
+const NET_PORT = Number(process.env.NET_PORT ?? 28960);
 const OVERRIDES = path.join(import.meta.dirname, 'overrides');
 // Sans isolation cross-origin, pas de SharedArrayBuffer : les pthreads du moteur ne démarrent pas.
 const ISOLATION = {
@@ -52,7 +54,7 @@ async function serve(req, res, status, headers, body) {
   await pipeline(body, res);
 }
 
-http.createServer(async (req, res) => {
+const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://127.0.0.1');
   try {
     // telemetry.js coupe tout envoi quand sa sonde ne reçoit pas de 200.
@@ -75,4 +77,6 @@ http.createServer(async (req, res) => {
     if (res.headersSent) res.destroy();
     else res.writeHead(502).end();
   }
-}).listen(PORT, '127.0.0.1', () => console.log(`http://127.0.0.1:${PORT}/bo1z/`));
+});
+attachNet(server, PORT, NET_PORT);
+server.listen(PORT, '127.0.0.1', () => console.log(`http://127.0.0.1:${PORT}/bo1z/`));
