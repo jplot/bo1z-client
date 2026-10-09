@@ -115,7 +115,7 @@ glue = replaceOnce(glue, 'worker.postMessage({cmd:1,handlers,wasmMemory,wasmModu
 glue = replaceOnce(glue, 'wasmMemory=msgData.wasmMemory;', 'wasmMemory=msgData.wasmMemory;kbnet.attach(wasmMemory,msgData.kbnet);', 'pthread');
 glue = replaceOnce(glue, 'worker.onmessage=e=>{var d=e.data;', 'worker.onmessage=e=>{var d=e.data;if(d.kbnet)return kbnet.forward(d.kbnet);', 'messages des pthreads');
 await override(`${ARTIFACTS}KisakBlack-web.mjs`, `import * as kbnet from "./kbnet.js";${glue}`);
-await copyFile(path.join(ROOT, 'web', 'kbnet.js'), path.join(ROOT, 'overrides', ARTIFACTS, 'kbnet.js'));
+for (const file of ['kbnet.js', 'ring.js']) await copyFile(path.join(ROOT, 'web', file), path.join(ROOT, 'overrides', ARTIFACTS, file));
 
 const engine = replaceOnce((await cached('/bo1z/engine.js')).toString(), '    state.arguments = args;',
   "    const kbnetConnect = new URLSearchParams(location.search).get('connect');\n    if (kbnetConnect) args.push('+connect', kbnetConnect);\n    state.arguments = args;", 'arguments du moteur');
