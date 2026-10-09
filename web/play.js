@@ -86,7 +86,9 @@ function introFinish(reason) {
   engine?.introReady?.(); // intro6: the engine's held zombies intro may run now
   if (reason !== 'ended' && reason !== 'closed') {
     intro.skipped = true;
-    if (Number.isFinite(video.duration) && !video.ended) try { video.currentTime = video.duration; } catch { /* not seekable yet */ }
+    const seekable = video.seekable.length && video.seekable.end(video.seekable.length - 1) >= video.duration;
+    if (seekable && !video.ended) video.currentTime = video.duration;
+    else if (!video.ended) video.dispatchEvent(new Event('ended'));
   }
 }
 // The cinematic only ends early once the game has loaded: while it still downloads/loads, keys and clicks leave it
