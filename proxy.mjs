@@ -25,7 +25,6 @@ const ISOLATION = {
 const TYPES = { '.wasm': 'application/wasm', '.mjs': 'text/javascript', '.js': 'text/javascript' };
 
 const rooms = signaling(ICE_SERVERS);
-const isFile = file => stat(file).then(info => info.isFile(), () => false);
 const digest = text => createHash('sha256').update(text).digest();
 const authorized = req => !PASSWORD
   || timingSafeEqual(digest(Buffer.from(req.headers.authorization?.split(' ')[1] ?? '', 'base64').toString().replace(/^[^:]*:/, '')), digest(PASSWORD));
@@ -58,17 +57,19 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/') return res.writeHead(302, { location: `/bo1z${url.search}` }).end();
     if (req.method !== 'GET' && req.method !== 'HEAD') return res.writeHead(405).end();
     const override = path.join(OVERRIDES, path.normalize(url.pathname));
-    if (await isFile(override)) {
+    const info = await stat(override).catch(() => null);
+    if (info?.isFile()) {
       const type = TYPES[path.extname(override)] ?? 'application/octet-stream';
-      return await serve(req, res, 200, { 'content-type': type }, createReadStream(override));
+      return await serve(req, res, 200, { 'content-type': type, 'content-length': info.size }, createReadStream(override));
     }
     const headers = { 'user-agent': req.headers['user-agent'], 'accept-encoding': req.headers['accept-encoding'] };
     if (req.headers.range || !CACHE) {
       const response = await upstream(url, req.headers.range ? { ...headers, range: req.headers.range } : headers);
       return await serve(req, res, response.statusCode, pick(response.headers), response);
     }
-    const { meta, body } = await cached(url, headers);
-    await serve(req, res, meta.status, meta.headers, body);
+    // Le worker de vel.gg compare Content-Length à la taille attendue des fichiers téléchargés d'un seul bloc.
+    const { meta, body, length } = await cached(url, headers);
+    await serve(req, res, meta.status, length === undefined ? meta.headers : { ...meta.headers, 'content-length': length }, body);
   } catch (error) {
     console.error(req.method, url.pathname + url.search, error.message);
     if (res.headersSent) res.destroy();
