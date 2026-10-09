@@ -9,7 +9,7 @@ import { attachNet } from './lib/net.mjs';
 
 const UPSTREAM = 'vel.gg';
 const PORT = Number(process.env.PORT ?? 8484);
-const NET_PORT = Number(process.env.NET_PORT ?? 28960);
+const NET_PORT = Number(process.env.NET_PORT ?? 3074);
 const OVERRIDES = path.join(import.meta.dirname, 'overrides');
 // Sans isolation cross-origin, pas de SharedArrayBuffer : les pthreads du moteur ne démarrent pas.
 const ISOLATION = {
