@@ -17,6 +17,7 @@ const IMPORTS = [
   { module: 'env', name: 'kb_net_recv', params: [I32, I32, I32], results: [I32] },
   { module: 'env', name: 'kb_net_resolve', params: [I32, I32, I32], results: [I32] },
   { module: 'env', name: 'kb_net_command', params: [I32, I32], results: [I32] },
+  { module: 'env', name: 'kb_net_multiplayer', params: [], results: [I32] },
 ];
 const get = local => [0x20, ...leb(local)];
 const i32 = value => [0x41, ...sleb(value)];
@@ -55,7 +56,7 @@ function find(module, name, matches, expected) {
 }
 
 function patches(module) {
-  const [send, recv, resolve, command] = IMPORTS.map((_, i) => [0x10, ...leb(module.importedFuncs + i)]);
+  const [send, recv, resolve, command, multiplayer] = IMPORTS.map((_, i) => [0x10, ...leb(module.importedFuncs + i)]);
   const edits = new Map();
   const add = (index, edit) => edits.set(index, [...(edits.get(index) ?? []), edit]);
 
@@ -91,16 +92,17 @@ function patches(module) {
   // (20 >> type) & 1 : bits 2 (NA_LOOPBACK) et 4 (NA_IP).
   add(connect.index, { at: connect.list[c].at, end: connect.list[c + 4].at, bytes: [...i32(20), ...loadType, 0x76, ...i32(1), 0x71] });
 
-  // Ni un menu (CL_PauseGame) ni le maintien d'intro de la page (cl_paused) ne doivent figer l'hôte : SV_CheckPaused inliné laissait le défi d'un joueur qui rejoint sans réponse.
+  // En multijoueur, ni un menu (CL_PauseGame) ni le maintien d'intro de la page (cl_paused) ne doivent figer l'hôte : SV_CheckPaused
+  // inliné laissait le défi d'un joueur qui rejoint sans réponse. En solo, la pause du jeu reste.
   const pause = find(module, 'CL_PauseGame(bool)', (_, k) => k === 0, 1);
-  add(pause.index, { at: pause.body.code, end: pause.body.code, bytes: [...i32(0), 0x21, ...leb(0)] });
+  add(pause.index, { at: pause.body.code, end: pause.body.code, bytes: [...multiplayer, 0x04, 0x40, ...i32(0), 0x21, ...leb(0), 0x0b] });
 
   const clPaused = pause.list.find((ins, k) => ins.op === 0x41 && pause.list[k + 1]?.op === 0x28).value;
   const pausedSkip = (list, k) => list[k].op === 0x41 && list[k].value === clPaused && list[k + 1]?.op === 0x28
     && list[k + 2]?.op === 0x28 && list[k + 2].offset === 24 && list[k + 3]?.op === 0x45 && list[k + 4]?.op === 0x0d && list[k + 4].index === 0;
   const frame = find(module, '__wrap__Z8SV_Frameii', pausedSkip, 1);
   const [f] = frame.found;
-  add(frame.index, { at: frame.list[f + 3].at, end: frame.list[f + 3].end, bytes: [0x1a, ...i32(1)] });
+  add(frame.index, { at: frame.list[f + 3].end, end: frame.list[f + 3].end, bytes: [...multiplayer, 0x72] });
 
   // Échap pendant le chargement qui suit connect (ni connexion ni partie en cours) levait
   // Com_Error(ERR_DISCONNECT, "Bad server address") : la partie du joueur qui rejoint s'arrêtait 0,5 s après connect.

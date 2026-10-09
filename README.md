@@ -26,7 +26,7 @@ Puis ouvrir http://127.0.0.1:8484/bo1z dans Chrome.
 
 ## Patcher le moteur
 
-`node patch/build.mjs` lit `engine/KisakBlack-web.wasm` et écrit le wasm patché dans `overrides/`, sans réseau : envoi, réception et `connect` vers une IPv4 passent par `kbnet.js`, la pause ne fige plus l'hôte, les assertions ne sont plus fatales. Le module JS qui charge le moteur (`web/artifacts/KisakBlack-web.mjs`) déclare les imports ajoutés et se modifie directement, comme tout le reste du site. `rm -r overrides` revient au moteur d'origine.
+`node patch/build.mjs` lit `engine/KisakBlack-web.wasm` et écrit le wasm patché dans `overrides/`, sans réseau : envoi, réception et `connect` vers une IPv4 passent par `kbnet.js`, la pause ne fige plus l'hôte d'une partie à plusieurs (en solo, Échap met toujours le jeu en pause), les assertions ne sont plus fatales. Le module JS qui charge le moteur (`web/artifacts/KisakBlack-web.mjs`) déclare les imports ajoutés et se modifie directement, comme tout le reste du site. `rm -r overrides` revient au moteur d'origine.
 
 ## Jouer à plusieurs
 

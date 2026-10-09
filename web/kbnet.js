@@ -10,6 +10,7 @@ let transport = null;
 let stats = null;
 let rings = null;
 let mailbox = null;
+let multi = null;
 export let shared = null;
 const pendingCommands = [];
 
@@ -19,7 +20,7 @@ function cString(heap, pointer) {
 
 export function attach(wasmMemory, page) {
   memory = wasmMemory;
-  ({ rings, mailbox } = page);
+  ({ rings, mailbox, multi } = page);
 }
 
 // Datagramme : 4 octets d'IPv4 et 2 de port big-endian (lus tels quels dans netadr_t), sock émetteur, données.
@@ -69,6 +70,15 @@ function postCommands() {
   if (pendingCommands.length && post(mailbox, new TextEncoder().encode(`${pendingCommands[0]}\n`))) pendingCommands.shift();
 }
 
+export function multiplayer() {
+  return Atomics.load(new Int32Array(multi), 0);
+}
+
+// Hôte d'un salon, invité, ou partie locale qu'un autre joueur vient de rejoindre par le relais UDP.
+function markMultiplayer() {
+  Atomics.store(new Int32Array(multi), 0, 1);
+}
+
 export function command(text) {
   pendingCommands.push(text);
 }
@@ -80,6 +90,7 @@ export function forward(packet) {
 
 // Le serveur reçoit sur NS_SERVER ce qu'un client émet depuis NS_CLIENT1, et inversement.
 function deliver(datagram) {
+  markMultiplayer();
   const sock = datagram[6] ^ 1;
   const queued = sock < SOCKS && datagram.length - 7 <= SLOT_DATA && push(rings, sock, datagram.subarray(0, 6), datagram.subarray(7));
   stats[queued ? 'received' : 'dropped']++;
@@ -221,9 +232,11 @@ if (!globalThis.WorkerGlobalScope) {
   stats = globalThis.kbnet = { sent: 0, received: 0, dropped: 0, command };
   rings = new SharedArrayBuffer(RING_BYTES);
   mailbox = new SharedArrayBuffer(MAILBOX_BYTES);
-  shared = { rings, mailbox };
+  multi = new SharedArrayBuffer(4);
+  shared = { rings, mailbox, multi };
   setInterval(postCommands, 50);
   const query = new URLSearchParams(location.search);
+  if (query.get('room') || query.get('connect')) markMultiplayer();
   if (query.get('room')) transport = room(query.get('room'), query.get('private') === '1');
   else {
     transport = relay();
