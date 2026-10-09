@@ -156,6 +156,9 @@
   .opt { display: grid; grid-template-columns: minmax(0, 1fr) 190px 64px; align-items: center; gap: 14px; font: 600 17px var(--ui); letter-spacing: .04em; }
   .opt input[type=range] { width: 100%; accent-color: var(--amber); cursor: pointer; }
   .opt output { text-align: right; font: 700 17px var(--ui); color: var(--amber); }
+  .opt input[type=number] { grid-column: 2 / span 2; justify-self: end; width: 96px; padding: 6px 10px; border: 1px solid var(--line); background: rgba(0, 0, 0, .5);
+    font: 700 17px var(--ui); color: var(--ink); text-align: right; outline: none; }
+  .opt input[type=number]:focus { border-color: var(--amber); }
   .opt .switch { grid-column: 2 / span 2; justify-self: end; }
   .opt :is(input, .switch):focus-visible { outline: 1px solid var(--amber); outline-offset: 2px; }
   .options .actions { justify-content: center; }

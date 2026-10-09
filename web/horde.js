@@ -5,8 +5,8 @@
 //    ran out of it (128 MB measured enough for round 100's 924 alive at once, Five).
 //  - no napalm/sonic enemies (kisak_mod_zones loads Shangri-La's zone, which no browser pack ships).
 //  - zinfo (the Tab counter) is its own Options mod; its dvar keeps the mod's default.
-export const HORDE_MIN = 24, HORDE_MAX = 1024, HORDE_SKIN_MB_MAX = 128;
-export const hordeDefaults = { n: 128, round: 1 };
+export const HORDE_MIN = 24, HORDE_MAX = 300, HORDE_SKIN_MB_MAX = 128;
+export const hordeDefaults = { n: 300, round: 100 };
 // (user, 2026-10-04: cap 300 in the browser; native ran 600)
 // webhorde: the fixed horde game = the user's native launcher run (tools/horde_flags.js: max 600, start round 100,
 // Tab counter and no perk machines ticked, unstick on, spawn-from-every-window off, carry-over on). Native adds
@@ -14,7 +14,7 @@ export const hordeDefaults = { n: 128, round: 1 };
 // hordetoggle: the landing's HORDE MODE toggle (landing.js) starts any map with horde: true (maps.js MAP_LIST) in this
 // game (page URL ?horde=1): the horde mod runs on any map through _zombiemode_ffotd::main_end; noperks and zinfo are
 // map-independent. Same dvars on every map.
-export const HORDE_GAME = { n: 300, round: 100, mods: ['zinfo', 'noperks'] };
+export const HORDE_GAME = { ...hordeDefaults, mods: ['zinfo', 'noperks'] };
 
 export function hordeCount(value) {
   const n = parseInt(value, 10);

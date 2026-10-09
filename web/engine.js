@@ -416,9 +416,9 @@ export function createEngine(canvas, state) {
       '+set', 'snd_menu_master', String(settings.volume), '+set', 'r_customMode', `${canvas.width}x${canvas.height}`);
     // webmods: the ticked mods the pack ships (play.js); the engine stacks mods/<name> and mods/_stack (FS_Startup)
     // horde also sizes the engine for its zombie count (horde.js); those dvars must precede devmap, as fs_mods does.
-    // hordetoggle: a horde page (?horde=1, the landing's HORDE MODE toggle) always starts the fixed horde game; the Options
-    // mods do not apply there.
-    if (hordePage) args.splice(args.indexOf('+devmap'), 0, ...hordeArguments(HORDE_GAME));
+    // hordetoggle: a horde page (?horde=1, the menu's Mode Enfer) starts the horde game with the zombie count and start round
+    // set in the menu's Options; the Options mods do not apply there.
+    if (hordePage) args.splice(args.indexOf('+devmap'), 0, ...hordeArguments({ ...HORDE_GAME, ...settings.horde }));
     else if (settings.mods?.includes('horde')) args.splice(args.indexOf('+devmap'), 0, ...hordeArguments({ ...settings.horde, mods: settings.mods }));
     else if (settings.mods?.length) args.splice(args.indexOf('+devmap'), 0, '+set', 'fs_mods', settings.mods.join(' '));
     // Headless parity runner injects this object before page scripts. Players

@@ -1,4 +1,5 @@
 import { MAPS } from './catalog.mjs';
+import { hordeCount, hordeDefaults, hordeRound } from './horde.js';
 
 const NAME_KEY = 'bo1z-name';
 const HELL_KEY = 'bo1z-horde';
@@ -302,6 +303,8 @@ const saved = loadSettings();
 if (Number.isFinite(saved.sensitivity)) $('o-sens').value = saved.sensitivity;
 if (saved.volumeChosen === true && Number.isFinite(saved.volume)) $('o-vol').value = saved.volume;
 $('o-full').setAttribute('aria-checked', String(saved.fullscreen === true));
+$('o-n').value = hordeCount(saved.horde?.n ?? hordeDefaults.n);
+$('o-round').value = hordeRound(saved.horde?.round ?? hordeDefaults.round);
 showSettings();
 $('o-sens').addEventListener('input', () => { showSettings(); saveSettings({ sensitivity: Number($('o-sens').value) }); });
 $('o-vol').addEventListener('input', () => { showSettings(); saveSettings({ volume: Number($('o-vol').value), volumeChosen: true }); });
@@ -310,6 +313,13 @@ $('o-full').addEventListener('click', () => {
   $('o-full').setAttribute('aria-checked', String(on));
   saveSettings({ fullscreen: on });
 });
+for (const id of ['o-n', 'o-round']) {
+  $(id).addEventListener('change', () => {
+    $('o-n').value = hordeCount($('o-n').value);
+    $('o-round').value = hordeRound($('o-round').value);
+    saveSettings({ horde: { n: Number($('o-n').value), round: Number($('o-round').value) } });
+  });
+}
 $('open-options').addEventListener('click', () => { $('options').showModal(); $('options').focus(); });
 
 $('pseudo').value = read(NAME_KEY) ?? '';
