@@ -39,6 +39,15 @@ async function telemetry(req, res) {
   res.writeHead(204).end();
 }
 
+// Vidéos de chargement (<video>) et reprise d'un fichier entier par download-worker.js : servies depuis le cache, hors ligne compris.
+function byteRange(header, length) {
+  const [, from, to] = /^bytes=(\d*)-(\d*)$/.exec(header ?? '') ?? [];
+  if (!from && !to) return null;
+  const start = from ? Number(from) : Math.max(0, length - Number(to));
+  const end = from && to ? Math.min(Number(to), length - 1) : length - 1;
+  return start <= end ? { start, end } : null;
+}
+
 async function serve(req, res, status, headers, body) {
   res.writeHead(status, { ...headers, ...ISOLATION });
   if (req.method === 'HEAD') {
@@ -63,13 +72,16 @@ const server = http.createServer(async (req, res) => {
       return await serve(req, res, 200, { 'content-type': type, 'content-length': info.size }, createReadStream(override));
     }
     const headers = { 'user-agent': req.headers['user-agent'], 'accept-encoding': req.headers['accept-encoding'] };
-    if (req.headers.range || !CACHE) {
+    if (!CACHE) {
       const response = await upstream(url, req.headers.range ? { ...headers, range: req.headers.range } : headers);
       return await serve(req, res, response.statusCode, pick(response.headers), response);
     }
     // Le worker de vel.gg compare Content-Length à la taille attendue des fichiers téléchargés d'un seul bloc.
-    const { meta, body, length } = await cached(url, headers);
-    await serve(req, res, meta.status, length === undefined ? meta.headers : { ...meta.headers, 'content-length': length }, body);
+    const { meta, body, file, length } = await cached(url, headers);
+    const range = length !== undefined && !meta.headers['content-encoding'] && byteRange(req.headers.range, length);
+    if (!range) return await serve(req, res, meta.status, length === undefined ? meta.headers : { ...meta.headers, 'content-length': length }, body);
+    body.destroy();
+    await serve(req, res, 206, { ...meta.headers, 'content-range': `bytes ${range.start}-${range.end}/${length}`, 'content-length': range.end - range.start + 1 }, createReadStream(file, range));
   } catch (error) {
     console.error(req.method, url.pathname + url.search, error.message);
     if (res.headersSent) res.destroy();

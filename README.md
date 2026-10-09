@@ -40,6 +40,22 @@ Sans passer par le lobby, tous les joueurs ouvrent la même adresse avec `?room=
 - Sur un seul Mac, le second joueur lance `PORT=8485 NET_PORT=3075 node proxy.mjs` et ouvre `http://127.0.0.1:8485/bo1z/nacht?connect=127.0.0.1:3074`.
 - `kbnet` dans la console de la page donne les paquets envoyés, reçus et perdus ; `kbnet.command('connect 192.168.1.20')` envoie une commande à la console du jeu.
 
+## Jouer sans vel.gg
+
+La branche `assets` contient `cache/` rempli : le site, le moteur et les 10 cartes, 4,7 Go. Elle ne doit vivre que dans un dépôt privé. Dans un clone :
+
+```sh
+git worktree add cache assets
+```
+
+Le relais sert alors tout depuis le disque, pages de salon et reprises par plage comprises, et `node patch/build.mjs` patche le moteur de cette version figée. `node prefetch.mjs` complète `cache/` depuis vel.gg sans retélécharger ce qui y est ; pour passer à une nouvelle version du site, vider `cache/`, relancer `prefetch.mjs` et commiter dans `assets`.
+
+GitHub refuse un envoi de plus de 2 Go : la branche se pousse commit par commit (un par carte).
+
+```sh
+for c in $(git rev-list --reverse assets); do git push origin $c:refs/heads/assets; done
+```
+
 ## Héberger sur Heroku
 
 ```sh
@@ -48,12 +64,12 @@ heroku config:set BO1Z_PASSWORD=<mot de passe>
 git push heroku main
 ```
 
-Les joueurs ouvrent `https://<nom>.herokuapp.com/bo1z/nacht?room=<salon>` ; le navigateur demande le mot de passe (n'importe quel identifiant). Le build de déploiement (`heroku-postbuild`) patche le moteur tel que vel.gg le sert ce jour-là ; le `Procfile` démarre sans pont UDP (`NET_PORT=0`, Heroku n'en reçoit pas) et sans cache disque (`CACHE=0`, disque éphémère) : les packs transitent par le serveur à chaque premier chargement. Il faut une offre qui ne se met pas en veille (Basic), sinon les parties sont coupées après 30 minutes sans visite.
+Les joueurs ouvrent `https://<nom>.herokuapp.com/bo1z/nacht?room=<salon>` ; le navigateur demande le mot de passe (n'importe quel identifiant). Le build de déploiement (`heroku-postbuild`) patche le moteur tel que vel.gg le sert ce jour-là ; le `Procfile` démarre sans pont UDP (`NET_PORT=0`, Heroku n'en reçoit pas) et sans cache disque (`CACHE=0`, disque éphémère) : les packs transitent par le serveur à chaque premier chargement. La branche `assets` n'y part pas : Heroku refuse les dépôts de plus de 1 Go. Il faut une offre qui ne se met pas en veille (Basic), sinon les parties sont coupées après 30 minutes sans visite.
 
 L'adresse étant publique, elle relaie le jeu d'Activision et le code de vel.gg : garder `BO1Z_PASSWORD` et un usage privé.
 
 ## Tests
 
-`npm test` fait passer un datagramme d'un relais à l'autre, vérifie le salon (numérotation, acheminement, départs, origine, mot de passe), les files partagées avec de vrais threads et le réécrivain de wasm sur un module minimal.
+`npm test` fait passer un datagramme d'un relais à l'autre, vérifie le salon (numérotation, acheminement, départs, origine, mot de passe), le service depuis le cache (longueur, plages, pages de salon), les files partagées avec de vrais threads et le réécrivain de wasm sur un module minimal.
 
 Node 22.15 ou plus récent (zstd dans `node:zlib`) ; Heroku utilise Node 24.

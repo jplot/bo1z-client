@@ -25,3 +25,16 @@ test('un fichier servi depuis le cache annonce sa longueur exacte (le worker de 
   assert.equal(response.headers.get('content-length'), '123456');
   assert.equal((await response.arrayBuffer()).byteLength, 123_456);
 });
+
+test('une reprise par plage est servie depuis le cache', async () => {
+  const response = await fetch(URL_PATH, { headers: { range: 'bytes=123000-' } });
+  assert.equal(response.status, 206);
+  assert.equal(response.headers.get('content-range'), 'bytes 123000-123455/123456');
+  assert.equal((await response.arrayBuffer()).byteLength, 456);
+});
+
+test('le nom du salon ne change pas l’entrée de cache', async () => {
+  const response = await fetch(`${URL_PATH}?room=soiree`);
+  assert.equal(response.status, 200);
+  assert.equal((await response.arrayBuffer()).byteLength, 123_456);
+});
