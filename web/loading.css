@@ -41,7 +41,7 @@ body:has(.kb-loading:not(.kb-gone)) :is(#settings, #notice) { display: none; }
 .kb-part em { display: inline-block; min-width: 2.8em; font-style: normal; margin-left: 4px; color: var(--muted); }
 @keyframes kb-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
 .kb-prompt { margin: 0 0 14px; font: 600 20px var(--ui); letter-spacing: .14em; text-transform: uppercase; color: var(--amber); animation: kb-pulse 1.4s ease-in-out infinite; }
-.kb-prompt[hidden] { display: none; }
+.kb-prompt.kb-off { visibility: hidden; }
 @keyframes kb-pulse { 50% { opacity: .45; } }
 .kb-note { margin: 0 0 14px; font: 500 17px var(--ui); letter-spacing: .04em; }
 .kb-note b { color: var(--amber); }

@@ -26,7 +26,7 @@ root.innerHTML = `<div class="kb-art"></div><div class="kb-veil"></div>
   <div class="kb-box">
     <div class="kb-kicker"></div><h2 class="kb-name"></h2><div class="kb-party"></div>
     <div class="kb-status"><i></i><span></span><small></small></div><div class="kb-timeline"></div>
-    <p class="kb-prompt" hidden></p>
+    <p class="kb-prompt kb-off"></p>
     <p class="kb-note" hidden><b>La souris n’a pas pu être capturée.</b> Clique encore une fois sur l’écran.</p>
     <div class="kb-error" hidden>
       <h3><span class="kb-warn">!</span><span class="kb-error-title"></span></h3><p class="kb-error-text"></p><p class="kb-error-hint"></p>
@@ -190,7 +190,7 @@ function render() {
   set($('.kb-status span'), 'textContent', full ? 'Prêt' : screen === 'loading' ? 'Chargement du moteur' : 'Téléchargement de la carte');
   set($('.kb-status i'), 'className', full ? 'kb-ok' : '');
   set($('.kb-status small'), 'textContent', full ? '' : progress().eta);
-  set($('.kb-prompt'), 'hidden', !(screen === 'ready' || waiting));
+  $('.kb-prompt').classList.toggle('kb-off', !(screen === 'ready' || waiting));
   set($('.kb-prompt'), 'textContent', waiting ? 'Entrée dans la partie de l’hôte…'
     : linkPending() ? `En attente de la liaison avec ${hostName}…` : 'Clique ou appuie sur une touche pour entrer');
   const link = kbnet()?.relayed ? 'relay' : kbnet()?.linked ? 'ok' : 'wait';
