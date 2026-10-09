@@ -5,6 +5,7 @@ import path from 'node:path';
 import { buffer } from 'node:stream/consumers';
 import { brotliDecompressSync } from 'node:zlib';
 import { CHUNK, cachePath, cached, cachedBytes, upstream } from './lib/cache.mjs';
+import { mapList, mapPage } from './lib/pages.mjs';
 
 const HEADERS = { 'user-agent': 'Mozilla/5.0 (bo1z-lan build)', 'accept-encoding': 'br, gzip, zstd' };
 const REF = /["'`](\.{0,2}\/?[\w./-]+\.(?:m?js|css|json|wasm|webp|png|svg|woff2?))["'`]/g;
@@ -18,7 +19,7 @@ async function crawl(urlPath, base = urlPath) {
   if (site.has(urlPath)) return;
   site.add(urlPath);
   let text;
-  try { text = (await cachedBytes(urlPath)).toString(); } catch { return void absent.push(urlPath); }
+  try { text = (await mapPage(urlPath)) ?? (await cachedBytes(urlPath)).toString(); } catch { return void absent.push(urlPath); }
   for (const [, ref] of text.matchAll(REF)) {
     const target = new URL(ref, `http://127.0.0.1${base}`).pathname;
     if (!target.startsWith('/bo1z/')) continue;
@@ -68,10 +69,9 @@ async function store(spec) {
   if (digest.digest('hex') !== spec.sha256) throw new Error(`${spec.url} : SHA-256 différent du manifeste`);
 }
 
-async function mapUrls({ zone, slug, horde }, first) {
-  const root = zone === first ? '/bo1z/' : `/bo1z/${slug}/`;
+async function mapUrls({ zone, slug, horde, first }) {
+  const root = first ? '/bo1z/' : `/bo1z/${slug}/`;
   const urls = [
-    `/bo1z/${slug}`,
     ...['row', 'hl', 'panel'].map(kind => `/bo1z/art/mapselect-${kind}-${slug}.webp`), `/bo1z/art/loadscreen_${zone}.webp`,
   ];
   const optional = [`/bo1z/artifacts/${slug}-programs.json`, `/bo1z/artifacts/${zone}-pipelines.json`];
@@ -108,16 +108,15 @@ async function runAll(tasks) {
   }));
 }
 
-const maps = (await cachedBytes('/bo1z/maps.js')).toString();
-const first = maps.match(/const FIRST = '(\w+)'/)[1];
-const list = [...maps.matchAll(/\{ zone: '(\w+)', slug: '(\w+)'[^}]*\}/g)].map(([entry, zone, slug]) => ({ zone, slug, horde: /horde: true/.test(entry) }));
+const list = await mapList();
 console.log(`${list.length} cartes : ${list.map(map => map.slug).join(', ')}`);
 
 await crawl('/bo1z', '/bo1z/');
 for (const { slug } of list) await crawl(`/bo1z/${slug}`, '/bo1z/');
-const urls = [...site], optional = [...assets], files = new Map();
+const pages = new Set(list.map(({ slug }) => `/bo1z/${slug}`));
+const urls = [...site].filter(url => !pages.has(url)), optional = [...assets], files = new Map();
 for (const map of list) {
-  const found = await mapUrls(map, first);
+  const found = await mapUrls(map);
   urls.push(...found.urls);
   optional.push(...found.optional);
   for (const spec of found.files) files.set(spec.url, spec);

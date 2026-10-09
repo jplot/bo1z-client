@@ -3,9 +3,11 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { appendFile, mkdir, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { cached, pick, upstream } from './lib/cache.mjs';
 import { udpBridge } from './lib/net.mjs';
+import { mapPage } from './lib/pages.mjs';
 import { signaling } from './lib/signal.mjs';
 
 const HOST = process.env.HOST ?? '127.0.0.1';
@@ -71,6 +73,8 @@ const server = http.createServer(async (req, res) => {
       const type = TYPES[path.extname(override)] ?? 'application/octet-stream';
       return await serve(req, res, 200, { 'content-type': type, 'content-length': info.size }, createReadStream(override));
     }
+    const page = CACHE && await mapPage(url.pathname);
+    if (page) return await serve(req, res, 200, { 'content-type': 'text/html', 'content-length': Buffer.byteLength(page) }, Readable.from([page]));
     const headers = { 'user-agent': req.headers['user-agent'], 'accept-encoding': req.headers['accept-encoding'] };
     if (!CACHE) {
       const response = await upstream(url, req.headers.range ? { ...headers, range: req.headers.range } : headers);

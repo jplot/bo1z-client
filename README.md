@@ -48,7 +48,7 @@ La branche `assets` contient `cache/` rempli : le site, le moteur et les 10 cart
 git worktree add cache assets
 ```
 
-Le relais sert alors tout depuis le disque, pages de salon et reprises par plage comprises, et `node patch/build.mjs` patche le moteur de cette version figée. `node prefetch.mjs` complète `cache/` depuis vel.gg sans retélécharger ce qui y est, recolle chaque fichier du jeu à partir de ses morceaux et vérifie son SHA-256 contre le manifeste de vel.gg ; pour passer à une nouvelle version du site, vider `cache/`, relancer `prefetch.mjs` et commiter dans `assets`.
+Le relais sert alors tout depuis le disque, pages de salon et reprises par plage comprises, et `node patch/build.mjs` patche le moteur de cette version figée. Cette branche est désormais le code du site : on ne la rafraîchit plus depuis vel.gg, on la modifie. Les dix pages de carte n'en font plus qu'une, `bo1z/map.html`, que le relais remplit avec `{{zone}}` et `{{name}}` d'après `maps.js`. `node prefetch.mjs` vérifie chaque fichier du jeu contre le SHA-256 du manifeste de vel.gg (et retélécharge ce qui manquerait).
 
 GitHub refuse un envoi de plus de 2 Go : la branche se pousse commit par commit (un par carte).
 
