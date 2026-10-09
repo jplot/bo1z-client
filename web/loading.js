@@ -22,7 +22,7 @@ const root = document.createElement('section');
 root.className = 'kb-loading';
 root.setAttribute('aria-live', 'polite');
 root.innerHTML = `<div class="kb-art"></div><div class="kb-veil"></div>
-  <a class="kb-back" href="/bo1z">Retour</a>
+  <a class="kb-back" href="/bo1z">Annuler</a>
   <div class="kb-box">
     <div class="kb-kicker"></div><h2 class="kb-name"></h2><div class="kb-party"></div>
     <ol class="kb-steps"></ol><div class="kb-bar"><i></i></div>
