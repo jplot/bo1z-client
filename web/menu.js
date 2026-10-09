@@ -2,148 +2,229 @@ import { MAPS } from './catalog.mjs';
 
 const NAME_KEY = 'bo1z-name';
 const HELL_KEY = 'bo1z-horde';
-const MAP_KEY = 'bo1z-map';
+const HOST = '10.0.0.1';
+const ERA = { 'World at War': 'waw', 'Black Ops': 'bo' };
+// Que des consonnes : aucun mot ne peut se former, et pas de O ni de I à confondre avec 0 et 1.
+const CODE = 'BCDFGHJKLMNPQRSTVWXZ';
 
 const $ = id => document.getElementById(id);
 const read = key => { try { return localStorage.getItem(key); } catch { return null; } };
 const write = (key, value) => { try { localStorage.setItem(key, value); } catch {} };
 const art = map => `art/loadscreen_${map.zone}.webp`;
 const panel = map => `art/mapselect-panel-${map.slug}.webp`;
+const bySlug = slug => MAPS.find(map => map.slug === slug);
 const mapUrl = (map, params = {}) => `${map.slug}${Object.keys(params).length ? `?${new URLSearchParams(params)}` : ''}`;
 const inviteUrl = name => `${location.origin}/bo1z?room=${encodeURIComponent(name)}`;
-const plural = (count, word) => `${count} ${word}${count > 1 ? 's' : ''}`;
+const isFull = room => room.players >= 4;
+const el = (tag, className, html = '') => Object.assign(document.createElement(tag), { className, innerHTML: html });
+const eraTitle = era => Object.assign(document.createElement('h3'), { className: `era-title ${ERA[era]}`, textContent: era });
 
 const layers = [...document.querySelectorAll('.bg div')];
-let current = -1, front = 0, rooms = [], hell = read(HELL_KEY) === '1', invited = new URLSearchParams(location.search).get('room');
+const codeBoxes = [...document.querySelectorAll('.code input')];
+let front = 0, rooms = [], shown = '', view = 'grid', picking = false, hovering = false, clearTimer = 0, selected = null;
+let hell = read(HELL_KEY) === '1', invited = new URLSearchParams(location.search).get('room');
 
-function toast(text) {
-  $('toast').textContent = text;
-  $('toast').classList.add('on');
-  clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => $('toast').classList.remove('on'), 2600);
-}
+const off = map => hell && !map.horde && !picking;
 
 function go(map, params) {
-  write(MAP_KEY, map.slug);
   location.assign(mapUrl(map, params));
 }
 
-function renderMaps() {
-  let era;
-  $('maps').replaceChildren(...MAPS.flatMap((map, i) => {
-    const nodes = [];
-    if (map.era !== era) {
-      era = map.era;
-      nodes.push(Object.assign(document.createElement('div'), { className: 'era', textContent: era }));
-    }
-    const button = Object.assign(document.createElement('button'), { className: 'map', type: 'button' });
-    button.innerHTML = `<span class="num">${String(i + 1).padStart(2, '0')}</span><span class="name"></span><span class="live" hidden></span>`;
-    button.querySelector('.name').textContent = map.name;
-    button.addEventListener('mouseenter', () => select(i));
-    button.addEventListener('focus', () => select(i));
-    button.addEventListener('click', play);
-    nodes.push(button);
-    return nodes;
-  }));
+function pick(map) {
+  if (off(map)) return;
+  if (picking) createRoom(map);
+  else go(map, hell && map.horde ? { horde: '1' } : {});
 }
 
-function select(i) {
-  if (i === current) return;
-  current = i;
-  const map = MAPS[i];
-  document.querySelectorAll('.map').forEach((button, k) => button.classList.toggle('selected', k === i));
-  front ^= 1;
-  layers[front].style.backgroundImage = `url(${art(map)})`;
-  layers[front].classList.add('on');
-  layers[front ^ 1].classList.remove('on');
-  $('shot').style.backgroundImage = `url(${panel(map)})`;
-  $('shot').setAttribute('aria-label', `Aperçu de ${map.name}`);
-  $('kicker').textContent = `${map.era} · Carte ${String(i + 1).padStart(2, '0')}`;
-  $('name').textContent = map.name;
-  $('place').textContent = map.place;
-  $('desc').textContent = map.desc;
-  $('hell').hidden = !map.horde;
-  renderRooms();
-}
-
-function renderRooms() {
-  const map = MAPS[current];
-  const here = rooms.filter(room => room.map === map.slug);
-  const tags = [[`${map.size.toFixed(1).replace('.', ',')} Go à télécharger une fois`], ...(map.horde ? [['Mode Enfer disponible', true]] : []),
-    ...(here.length ? [[`${plural(here.length, 'salon')} ouvert${here.length > 1 ? 's' : ''}`, true]] : [])];
-  $('tags').replaceChildren(...tags.map(([text, hot]) => Object.assign(document.createElement('span'), { className: `tag${hot ? ' hot' : ''}`, textContent: text })));
-  document.querySelectorAll('.map').forEach((button, k) => {
-    const live = rooms.filter(room => room.map === MAPS[k].slug).length;
-    Object.assign(button.querySelector('.live'), { hidden: !live, textContent: live });
-  });
-  $('count').textContent = `${rooms.length} ouvert${rooms.length > 1 ? 's' : ''}`;
-  $('hell-note').hidden = !(hell && map.horde);
-  const sorted = [...rooms].sort((a, b) => (b.map === map.slug) - (a.map === map.slug));
-  $('rooms').replaceChildren(...(sorted.length ? sorted.map(room => {
-    const roomMap = MAPS.find(entry => entry.slug === room.map);
-    const row = document.createElement('div');
-    row.className = `room${room.map === map.slug ? ' here' : ''}`;
-    row.innerHTML = '<div class="thumb"></div><div><b></b><span></span></div><button class="join" type="button">Rejoindre</button>';
-    if (roomMap) row.querySelector('.thumb').style.backgroundImage = `url(${panel(roomMap)})`;
-    row.querySelector('b').textContent = room.name;
-    row.querySelector('span').textContent = roomMap?.name ?? room.map;
-    row.querySelector('span').insertAdjacentHTML('beforeend',
-      `<span class="dots">${[0, 1, 2, 3].map(k => `<i class="${k < room.players ? 'in' : ''}"></i>`).join('')}</span>`);
-    row.querySelector('.join').addEventListener('click', () => join(room));
-    return row;
-  }) : [Object.assign(document.createElement('div'), { className: 'empty', textContent: 'Aucun salon ouvert. Crée le premier !' })]));
-}
-
-function play() {
-  const map = MAPS[current];
-  go(map, hell && map.horde ? { horde: '1' } : {});
+// Le premier arrivé d'un salon en est l'hôte : un code déjà pris ferait rejoindre la partie d'un autre, sur sa carte.
+async function createRoom(map) {
+  let name;
+  do name = Array.from({ length: 4 }, () => CODE[Math.floor(Math.random() * CODE.length)]).join('');
+  while (rooms.some(room => room.name === name));
+  await navigator.clipboard?.writeText(inviteUrl(name)).catch(() => {});
+  go(map, { room: name });
 }
 
 function join(room) {
-  const map = MAPS.find(entry => entry.slug === room.map);
-  if (map) go(map, { room: room.name });
+  const map = bySlug(room.map);
+  if (map && !isFull(room)) go(map, { room: room.name });
 }
 
-// Le premier arrivé d'un salon en est l'hôte : un nom déjà pris ferait rejoindre la partie d'un autre, sur sa carte.
-async function create(name) {
-  if (!name) return toast('Donne un nom au salon.');
-  if (rooms.some(room => room.name === name)) return toast(`Le salon « ${name} » existe déjà.`);
-  await navigator.clipboard?.writeText(inviteUrl(name)).catch(() => {});
-  go(MAPS[current], { room: name });
+function backdrop(map) {
+  if (layers[front].dataset.zone === map.zone) return;
+  front ^= 1;
+  layers[front].style.backgroundImage = `url(${art(map)})`;
+  layers[front].dataset.zone = map.zone;
+  layers[front].classList.add('on');
+  layers[front ^ 1].classList.remove('on');
 }
 
-function invite(name) {
-  const room = rooms.find(entry => entry.name === name);
-  const map = room && MAPS.find(entry => entry.slug === room.map);
-  $('invite-title').textContent = room ? 'Invitation' : 'Salon introuvable';
-  $('invite-text').textContent = room ? `Salon « ${room.name} » sur ${map?.name ?? room.map} · ${plural(room.players, 'joueur')}.`
-    : `Le salon « ${name} » est fermé, ou son hôte n’a pas encore lancé la carte.`;
-  $('invite-link').hidden = true;
-  $('invite-pseudo-field').hidden = !room;
-  $('invite-pseudo').value = $('pseudo').value;
-  $('invite-go').hidden = !room;
-  $('invite').onclose = () => {
-    if ($('invite').returnValue !== 'go' || !room) return;
-    setPseudo($('invite-pseudo').value);
-    join(room);
-  };
-  $('invite').showModal();
+function rotate() {
+  if (hovering) return;
+  const others = MAPS.filter(map => map.zone !== layers[front].dataset.zone);
+  backdrop(others[Math.floor(Math.random() * others.length)]);
 }
 
-function pasteInvite() {
-  $('invite-title').textContent = 'Rejoindre un salon';
-  $('invite-text').textContent = 'Colle le lien d’invitation que l’hôte t’a envoyé, ou juste le nom du salon.';
-  Object.assign($('invite-link'), { hidden: false, value: '' });
-  $('invite-pseudo-field').hidden = true;
-  $('invite-go').hidden = false;
-  $('invite').onclose = () => {
-    const value = $('invite-link').value.trim();
-    if ($('invite').returnValue !== 'go' || !value) return;
-    let name = value;
-    try { name = new URL(value).searchParams.get('room') ?? value; } catch {}
-    invite(name);
-  };
-  $('invite').showModal();
+function hover(map) {
+  clearTimeout(clearTimer);
+  hovering = true;
+  backdrop(map);
+}
+
+function unhover() {
+  clearTimer = setTimeout(() => {
+    hovering = false;
+    selected = null;
+    $('describe').replaceChildren();
+    for (const row of document.querySelectorAll('.solo-list .row')) row.classList.remove('sel');
+    document.querySelector('.solo-list .detail')?.classList.remove('on');
+  }, 120);
+}
+
+function describe(map) {
+  hover(map);
+  $('describe').replaceChildren(Object.assign(document.createElement('b'), { textContent: map.name }), Object.assign(document.createElement('span'), { textContent: map.desc }));
+}
+
+function mapCard(map) {
+  const card = el('button', `mapc ${ERA[map.era]}${off(map) ? ' off' : ''}`, '<div><b></b><span></span></div>');
+  card.type = 'button';
+  if (off(map)) card.setAttribute('aria-disabled', 'true');
+  card.style.backgroundImage = `url(${panel(map)})`;
+  card.querySelector('b').textContent = map.name;
+  card.querySelector('span').textContent = map.horde && !picking ? 'Mode Enfer' : '';
+  card.addEventListener('mouseenter', () => describe(map));
+  card.addEventListener('focus', () => describe(map));
+  card.addEventListener('mouseleave', unhover);
+  card.addEventListener('blur', unhover);
+  card.addEventListener('click', () => pick(map));
+  return card;
+}
+
+function renderMaps() {
+  $('describe').hidden = view === 'list';
+  if (view === 'list') return renderList();
+  $('maps').replaceChildren(...Object.keys(ERA).flatMap(era => {
+    const grid = el('div', 'grid');
+    grid.append(...MAPS.filter(map => map.era === era).map(mapCard));
+    return [eraTitle(era), grid];
+  }));
+}
+
+function renderList() {
+  const list = el('div', 'maps');
+  list.append(...Object.keys(ERA).flatMap(era => [eraTitle(era), ...MAPS.filter(map => map.era === era).map(map => {
+    const row = el('button', `row ${ERA[era]}${off(map) ? ' off' : ''}`);
+    row.type = 'button';
+    row.textContent = map.name;
+    row.dataset.slug = map.slug;
+    if (off(map)) row.setAttribute('aria-disabled', 'true');
+    row.addEventListener('mouseenter', () => select(map));
+    row.addEventListener('focus', () => select(map));
+    row.addEventListener('mouseleave', unhover);
+    row.addEventListener('blur', unhover);
+    row.addEventListener('click', () => pick(map));
+    return row;
+  })]));
+  const wrap = el('div', 'solo-list');
+  wrap.append(list, el('div', 'detail', '<div class="shot" role="img"></div><div class="kicker"></div><h2></h2><div class="place"></div><p class="desc"></p>'));
+  $('maps').replaceChildren(wrap);
+  if (selected) select(selected);
+}
+
+function select(map) {
+  hover(map);
+  selected = map;
+  for (const row of document.querySelectorAll('.solo-list .row')) row.classList.toggle('sel', row.dataset.slug === map.slug);
+  const detail = document.querySelector('.solo-list .detail');
+  detail.querySelector('.shot').style.backgroundImage = `url(${panel(map)})`;
+  detail.querySelector('.shot').setAttribute('aria-label', `Aperçu de ${map.name}`);
+  Object.assign(detail.querySelector('.kicker'), { className: `kicker ${ERA[map.era]}`, textContent: `${map.era} · Carte ${String(MAPS.indexOf(map) + 1).padStart(2, '0')}` });
+  detail.querySelector('h2').textContent = map.name;
+  detail.querySelector('.place').textContent = map.place;
+  detail.querySelector('.desc').textContent = map.desc;
+  detail.classList.add('on');
+}
+
+function renderRooms() {
+  $('count').textContent = rooms.length || '';
+  if (!rooms.length) return $('rooms').replaceChildren(el('p', 'empty', 'Aucun salon ouvert. Crée le premier, ou rejoins un ami avec son code.'));
+  const list = el('div', 'rlist', '<div class="head"><span></span><span>Salon</span><span>Carte</span><span>Joueurs</span><span>Places</span><span></span></div>');
+  list.append(...rooms.map(room => {
+    const map = bySlug(room.map);
+    const line = el('div', `line${isFull(room) ? ' full' : ''}`, '<div class="thumb"></div><b></b><span class="cell"></span><div class="party"></div><span class="count"></span>');
+    line.querySelector('b').textContent = room.name;
+    line.querySelector('.cell').textContent = map?.name ?? room.map;
+    const members = [...room.members].sort((a, b) => (b.label === HOST) - (a.label === HOST));
+    line.querySelector('.party').append(...members.map(({ label, pseudo }) =>
+      Object.assign(document.createElement('span'), { textContent: pseudo || 'Unknown Soldier', ...(label === HOST && { title: 'Hôte du salon' }) })));
+    line.querySelector('.count').textContent = `${room.players} / 4`;
+    const button = el('button', isFull(room) ? 'ghost' : 'ghost join', isFull(room) ? 'Complet' : 'Rejoindre');
+    Object.assign(button, { type: 'button', disabled: isFull(room) });
+    button.addEventListener('click', () => join(room));
+    line.append(button);
+    if (map) {
+      line.querySelector('.thumb').style.backgroundImage = `url(${panel(map)})`;
+      line.addEventListener('mouseenter', () => hover(map));
+      line.addEventListener('mouseleave', unhover);
+    }
+    return line;
+  }));
+  $('rooms').replaceChildren(list);
+}
+
+function showTab(name) {
+  $('tab-solo').setAttribute('aria-selected', String(name === 'solo'));
+  $('tab-multi').setAttribute('aria-selected', String(name === 'multi'));
+  $('tab-solo').hidden = $('tab-multi').hidden = picking;
+  $('creating').hidden = $('cancel-pick').hidden = $('k-cancel').hidden = !picking;
+  for (const hint of document.querySelectorAll('.k-main')) hint.hidden = picking;
+  $('pane-solo').hidden = name !== 'solo';
+  $('pane-multi').hidden = name !== 'multi';
+  $('hell').hidden = name !== 'solo' || picking;
+  $('views').hidden = name !== 'solo';
+  $('create').hidden = $('open-code').hidden = name !== 'multi';
+}
+
+function startPicking() {
+  picking = true;
+  renderMaps();
+  showTab('solo');
+}
+
+function stopPicking() {
+  picking = false;
+  renderMaps();
+  showTab('multi');
+}
+
+function codeState() {
+  const value = codeBoxes.map(box => box.value).join('');
+  const room = value.length === 4 && rooms.find(entry => entry.name === value);
+  $('join-code').disabled = !room || isFull(room);
+  $('code-note').textContent = value.length < 4 ? '' : !room ? 'Aucun salon avec ce code' : isFull(room) ? 'Ce salon est complet' : '';
+  return room;
+}
+
+function fillCode(from, text) {
+  const letters = text.toUpperCase().replace(/[^A-Z]/g, '').slice(0, codeBoxes.length - from);
+  [...letters].forEach((letter, k) => { codeBoxes[from + k].value = letter; });
+  codeBoxes[Math.min(from + letters.length, codeBoxes.length - 1)].focus();
+  codeState();
+}
+
+function openCode(text = '') {
+  showTab('multi');
+  for (const box of codeBoxes) box.value = '';
+  $('joincode').showModal();
+  fillCode(0, text);
+}
+
+function joinCode() {
+  const room = codeState();
+  if (!room || isFull(room)) return;
+  $('joincode').close();
+  join(room);
 }
 
 async function refresh() {
@@ -151,9 +232,14 @@ async function refresh() {
     const response = await fetch('/rooms', { cache: 'no-store' });
     if (response.ok) rooms = await response.json();
   } catch {}
-  renderRooms();
-  if (invited) {
-    invite(invited);
+  const key = JSON.stringify(rooms);
+  if (key !== shown) {
+    shown = key;
+    renderRooms();
+    if ($('joincode').open) codeState();
+  }
+  if (invited !== null) {
+    openCode(invited);
     invited = null;
   }
   setTimeout(refresh, 2000);
@@ -164,35 +250,61 @@ function setPseudo(value) {
   write(NAME_KEY, $('pseudo').value);
 }
 
+codeBoxes.forEach((box, k) => {
+  box.addEventListener('keydown', event => {
+    if (event.metaKey || event.ctrlKey || event.altKey || event.key === 'Tab') return;
+    event.preventDefault();
+    if (/^[a-z]$/i.test(event.key)) fillCode(k, event.key);
+    else if (event.key === 'Backspace' && !box.value && k > 0) { codeBoxes[k - 1].value = ''; codeBoxes[k - 1].focus(); }
+    else if (event.key === 'Backspace' || event.key === 'Delete') box.value = '';
+    else if (event.key === 'ArrowLeft' && k > 0) codeBoxes[k - 1].focus();
+    else if (event.key === 'ArrowRight' && k < codeBoxes.length - 1) codeBoxes[k + 1].focus();
+    else if (event.key === 'Enter') joinCode();
+    else if (event.key === 'Escape') $('joincode').close();
+    codeState();
+  });
+  box.addEventListener('paste', event => { event.preventDefault(); fillCode(k, event.clipboardData.getData('text')); });
+  box.addEventListener('input', () => fillCode(k, box.value));
+});
+
 $('pseudo').value = read(NAME_KEY) ?? '';
 $('pseudo').addEventListener('input', () => setPseudo($('pseudo').value));
-$('invite-pseudo').addEventListener('input', event => { event.target.value = event.target.value.replace(/[^\w-]/g, '').slice(0, 15); });
 $('hell').setAttribute('aria-checked', String(hell));
 $('hell').addEventListener('click', () => {
   hell = !hell;
   write(HELL_KEY, hell ? '1' : '0');
   $('hell').setAttribute('aria-checked', String(hell));
-  renderRooms();
+  renderMaps();
 });
-$('play').addEventListener('click', play);
-$('paste').addEventListener('click', pasteInvite);
-$('room').value = `salon-${crypto.randomUUID().slice(0, 4)}`;
-$('create').addEventListener('submit', event => {
-  event.preventDefault();
-  create($('room').value.trim().replace(/\s+/g, '-').replace(/[^\p{L}\p{N}_-]/gu, ''));
-});
+$('tab-solo').addEventListener('click', () => showTab('solo'));
+$('tab-multi').addEventListener('click', () => showTab('multi'));
+$('create').addEventListener('click', startPicking);
+$('cancel-pick').addEventListener('click', stopPicking);
+$('open-code').addEventListener('click', () => openCode());
+$('join-code').addEventListener('click', joinCode);
+for (const button of document.querySelectorAll('.views button')) {
+  button.addEventListener('click', () => {
+    view = button.dataset.view;
+    for (const other of document.querySelectorAll('.views button')) other.setAttribute('aria-pressed', String(other === button));
+    renderMaps();
+  });
+}
 
 document.addEventListener('keydown', event => {
-  if (event.target.matches('input') || $('invite').open) return;
-  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+  if (event.target.matches('input') || $('joincode').open) return;
+  if (event.key === 'Escape' && picking) stopPicking();
+  else if (event.key === '1' && !picking) showTab('solo');
+  else if (event.key === '2' && !picking) showTab('multi');
+  else if (event.key.toLowerCase() === 'e' && !$('hell').hidden) $('hell').click();
+  else if (view === 'list' && !$('pane-solo').hidden && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
     event.preventDefault();
-    const next = (current + (event.key === 'ArrowDown' ? 1 : MAPS.length - 1)) % MAPS.length;
-    document.querySelectorAll('.map')[next].focus();
-  } else if (event.key === 'Enter' && !event.target.matches('button')) play();
-  else if (event.key.toLowerCase() === 'e' && MAPS[current].horde) $('hell').click();
-  else if (event.key.toLowerCase() === 's') document.querySelector('.join, #room')?.focus();
+    const rows = [...document.querySelectorAll('.solo-list .row:not(.off)')];
+    const k = rows.findIndex(row => row.dataset.slug === selected?.slug), down = event.key === 'ArrowDown';
+    rows[k < 0 ? (down ? 0 : rows.length - 1) : (k + (down ? 1 : rows.length - 1)) % rows.length].focus();
+  }
 });
 
 renderMaps();
-select(Math.max(0, MAPS.findIndex(map => map.slug === read(MAP_KEY))));
+rotate();
+setInterval(rotate, 6000);
 refresh();
