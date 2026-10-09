@@ -244,7 +244,6 @@ export function createEngine(canvas, state) {
     if (new RegExp('KISAK_BROWSER map-loaded\\s+' + mapId + '\\b').test(message)) {
       if (startupConsoleLines === null) startupConsoleLines = state.console.length;
       state.timings.mapLoaded = performance.now();
-      globalThis.dispatchEvent?.(new Event('kisak-map-loaded')); // load4: play.js releases the held background download
       // webregress: a build without KISAK_WEBGPU prints neither READY nor FALLBACK; by map load the
       // renderer is up, so a still-pending WebGPU choice means the engine is on WebGL2.
       if (state.renderer === 'webgpu-pending') Object.assign(state, { renderer: 'webgl2',
@@ -618,8 +617,6 @@ export function createEngine(canvas, state) {
     // loadvol: the cinematic master volume (video_bridge.js setMaster; before the bridge exists, start() reads state.videoMaster).
     videoMaster(value) { if (module?.kbVideo?.setMaster) module.kbVideo.setMaster(value); },
     describeMenu: () => module?._KB_Input(5, 0, 0),
-    // Background IWDs finished after FS_Startup: index them now (no-op before the module exists; startup sees them).
-    lateIwds: () => module?._KB_Input(6, 0, 0),
     pause() {
       input.enable(false);
       mouseX = mouseY = 0;

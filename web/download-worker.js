@@ -57,6 +57,8 @@ async function fileAt(base, path, create = false) {
 }
 
 function validate(manifest) {
+  // soundboot: the engine's late IWD scan kept half-written files for good, and Nacht's round-1 music (iw_22, iw_41) landed after it was asked for.
+  for (const f of manifest.files ?? []) if (f?.priority === 'background') f.priority = 'boot';
   // size2 t3: Opus sounds need WebCodecs AudioDecoder + nested workers; otherwise use the original parts from the start.
   for (const f of manifest.files ?? []) if (f?.opus && f.fallback && (typeof AudioDecoder !== 'function' || typeof Worker !== 'function')) useFallback(f);
   if (manifest.schema !== 1 || !/^[a-f0-9]{64}$/.test(manifest.version) || !Array.isArray(manifest.files)) throw new Error('Unsupported manifest');
@@ -396,8 +398,7 @@ async function fetchFile(entry, base) {
   await saveMetadata();
 }
 
-let resumeBackground = null;
-async function download({ bootOnly = false, parallel = 3, want = [], order = 'b2', holdBackground = false, delay = null } = {}) {
+async function download({ bootOnly = false, parallel = 3, want = [], order = 'b2', delay = null } = {}) {
   started = performance.now();
   metrics = { networkBytes: 0, cachedFiles: 0, verifiedFiles: 0, verifiedBytes: 0, verifyMs: 0, digestMs: 0, opfsWrites: 0 };
   directoryHandles = new Map();
@@ -430,9 +431,6 @@ async function download({ bootOnly = false, parallel = 3, want = [], order = 'b2
     for (const priority of manifest.classes) {
       if (bootOnly && priority !== 'boot') break;
       if (priority === 'lazy') continue; // size2: lazy files ride with boot only when asked for (want)
-      // load4: music/voices (background) wait until play.js reports map-loaded (or 120 s): during the cold tail of the map
-      // load their fetch + digest + OPFS writes shared the link, CPU and the OPFS backend with the engine's zone reads.
-      if (priority !== 'boot' && holdBackground) await new Promise(resolve => { resumeBackground = resolve; setTimeout(resolve, 120000); });
       currentClass = priority; classDone = 0;
       const files = manifest.files.filter(f => f.priority === priority || (priority === 'boot' && f.priority === 'lazy' && want.includes(f.path)));
       // overlap: the engine starts during the boot download and waits per file (src/web/browser/pack_gate.cpp), so fetch
@@ -507,7 +505,6 @@ async function inspect({ want = [] } = {}) {
 }
 
 onmessage = event => {
-  if (event.data.type === 'resume-background') { resumeBackground?.(); return; }
   if (!['download', 'inspect'].includes(event.data.type)) return;
   navigator.locks.request('five-pack-download', () => event.data.type === 'inspect' ? inspect(event.data) : download(event.data)).catch(error => {
     postMessage({ type: 'error', message: error.message, name: error.name });

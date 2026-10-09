@@ -384,10 +384,10 @@ $('volume').addEventListener('input', () => { volumeChosen = true; saveSettings(
 saveSettings();
 
 // size2: manifest "lazy" files the worker fetches with boot: the GLSL pack only when WebGL2 is chosen.
-// load4: ?dlorder=b1 = previous boot order (A/B); ?bgHold=0 = background download right after boot (A/B).
+// load4: ?dlorder=b1 = previous boot order (A/B).
 const loadParams = new URLSearchParams(location.search);
 const post = (worker, type) => rendererChoice().then(choice => worker.postMessage({ type, order: overlapB0 ? 'b0' : (loadParams.get('dlorder') || globalThis.__kisakDlOrder || 'b3'),
-  holdBackground: overlap && (loadParams.get('bgHold') ?? globalThis.__kisakBgHold ?? '1') !== '0', want: state.want = choice.renderer === 'webgl2' ? [glslPack] : [], delay: dlDelay }));
+  want: state.want = choice.renderer === 'webgl2' ? [glslPack] : [], delay: dlDelay }));
 // overlap: start the engine as soon as the manifest is known; it opens each boot file only after the worker reports it
 // verified (file-ready -> KB_PackReady, src/web/browser/pack_gate.cpp). ?overlap=0 keeps the old start at boot-ready.
 // bootfix (test only): ?dlDelay=<path>:<ms> (or globalThis.__kisakDlDelay) delays one pack file in the download worker.
@@ -446,7 +446,7 @@ function newDownloader() {
     } else if (data.type === 'progress') {
       if (data.priority === 'boot' && !state.boot) {
         barDownload(data);
-      } else if (data.priority === 'background') state.music = Math.floor(100 * data.completed / data.total); // onebar: music/voices continue silently after boot (no second bar); #background only shows a pause + Retry.
+      }
     } else if (data.type === 'boot-ready') {
       state.boot = data.metrics; state.timings.bootReady = performance.now(); state.manifest = data.manifest;
       // Show the pending sound transfer before its first network progress event.
@@ -461,7 +461,6 @@ function newDownloader() {
       if (!engine) loadEngine();
     } else if (data.type === 'complete') {
       state.result = data.metrics; downloading = false; $('background').hidden = true; downloader.terminate();
-      engine?.lateIwds?.(); // music/voice IWDs that landed after the engine indexed main/
       state.music = 100;
     } else if (data.type === 'error') downloadError(data.message, data.name);
   };
@@ -597,7 +596,6 @@ $('background-retry').onclick = () => {
   $('background-retry').hidden = true; downloading = true;
   newDownloader(); post(downloader, 'download');
 };
-addEventListener('kisak-map-loaded', () => downloader?.postMessage({ type: 'resume-background' }));
 window.addEventListener('pagehide', () => { downloader?.terminate(); engine?.stop().catch(() => {}); });
 try {
   const unsupported = await checkCapabilities();
