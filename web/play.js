@@ -464,7 +464,6 @@ function newDownloader() {
       if (!engine) loadEngine();
     } else if (data.type === 'complete') {
       state.result = data.metrics; downloading = false; $('background').hidden = true; downloader.terminate();
-      state.music = 100;
     } else if (data.type === 'error') downloadError(data.message, data.name);
   };
 }

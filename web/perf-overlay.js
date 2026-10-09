@@ -83,7 +83,7 @@ export function startPerfOverlay() {
       <div class="row"><span>page <b data-k="page"></b> FPS</span><span>occupée <b data-k="busy"></b></span></div>
     </div>
     <div class="group"><h4>Son</h4>
-      <div class="row"><span>coupures <b data-k="under"></b></span><span>musique <b data-k="music"></b></span></div>
+      <div class="row"><span>coupures <b data-k="under"></b></span></div>
     </div>
     <div class="group" data-k="net"><h4 data-k="room"></h4>
       <div class="row"><span data-k="link"></span><span>perdus <b data-k="lost"></b></span></div>
@@ -191,7 +191,6 @@ export function startPerfOverlay() {
     let audio = null;
     try { audio = engine?.audioSnapshot?.(); } catch { /* engine stopped */ }
     set('under', audio?.underruns ?? '–', audio?.underruns ? 'warn' : '');
-    set('music', state?.music === undefined ? 'en attente' : state.music >= 100 ? 'prête' : `${state.music} %`);
     renderNet();
   }
   function setMode(next) {
