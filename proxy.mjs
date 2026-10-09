@@ -17,6 +17,7 @@ const CACHE = process.env.CACHE !== '0';
 const PASSWORD = process.env.BO1Z_PASSWORD;
 const ICE_SERVERS = JSON.parse(process.env.ICE_SERVERS ?? '[{"urls":"stun:stun.l.google.com:19302"}]');
 const OVERRIDES = path.join(import.meta.dirname, 'overrides');
+const WEB = path.join(import.meta.dirname, 'web');
 const TELEMETRY = path.join(import.meta.dirname, 'telemetry');
 // Sans isolation cross-origin, pas de SharedArrayBuffer : les pthreads du moteur ne démarrent pas.
 const ISOLATION = {
@@ -24,7 +25,7 @@ const ISOLATION = {
   'cross-origin-embedder-policy': 'require-corp',
   'cross-origin-resource-policy': 'same-origin',
 };
-const TYPES = { '.wasm': 'application/wasm', '.mjs': 'text/javascript', '.js': 'text/javascript' };
+const TYPES = { '.wasm': 'application/wasm', '.mjs': 'text/javascript', '.js': 'text/javascript', '.html': 'text/html', '.css': 'text/css', '.json': 'application/json' };
 
 const rooms = signaling(ICE_SERVERS);
 const digest = text => createHash('sha256').update(text).digest();
@@ -50,6 +51,16 @@ function byteRange(header, length) {
   return start <= end ? { start, end } : null;
 }
 
+// Le moteur patché par le build (overrides/) passe avant le site (web/, servi sous /bo1z/).
+async function localFile(pathname) {
+  const site = /^\/bo1z\/?$/.test(pathname) ? '/index.html' : pathname.startsWith('/bo1z/') && pathname.slice('/bo1z'.length);
+  for (const file of [path.join(OVERRIDES, path.normalize(pathname)), ...(site ? [path.join(WEB, path.normalize(site))] : [])]) {
+    const info = await stat(file).catch(() => null);
+    if (info?.isFile()) return { file, size: info.size };
+  }
+  return null;
+}
+
 async function serve(req, res, status, headers, body) {
   res.writeHead(status, { ...headers, ...ISOLATION });
   if (req.method === 'HEAD') {
@@ -67,12 +78,8 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/rooms') return res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify(rooms.list()));
     if (url.pathname === '/') return res.writeHead(302, { location: `/bo1z${url.search}` }).end();
     if (req.method !== 'GET' && req.method !== 'HEAD') return res.writeHead(405).end();
-    const override = path.join(OVERRIDES, path.normalize(url.pathname));
-    const info = await stat(override).catch(() => null);
-    if (info?.isFile()) {
-      const type = TYPES[path.extname(override)] ?? 'application/octet-stream';
-      return await serve(req, res, 200, { 'content-type': type, 'content-length': info.size }, createReadStream(override));
-    }
+    const local = await localFile(url.pathname);
+    if (local) return await serve(req, res, 200, { 'content-type': TYPES[path.extname(local.file)] ?? 'application/octet-stream', 'content-length': local.size }, createReadStream(local.file));
     const page = CACHE && await mapPage(url.pathname);
     if (page) return await serve(req, res, 200, { 'content-type': 'text/html', 'content-length': Buffer.byteLength(page) }, Readable.from([page]));
     const headers = { 'user-agent': req.headers['user-agent'], 'accept-encoding': req.headers['accept-encoding'] };

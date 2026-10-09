@@ -1,6 +1,5 @@
-import { copyFile, mkdir, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { cachedBytes as cached } from '../lib/cache.mjs';
 import { instructions, leb, parse, rebuild, sleb } from './wasm.mjs';
 
 const ROOT = path.join(import.meta.dirname, '..');
@@ -153,28 +152,27 @@ function patches(module) {
   return edits;
 }
 
-const original = await cached(`${ARTIFACTS}KisakBlack-web.wasm`);
+const original = await readFile(path.join(ROOT, 'engine', 'KisakBlack-web.wasm'));
 const module = parse(new Uint8Array(original));
 const wasm = rebuild(module, { imports: IMPORTS, edits: patches(module) });
 if (!WebAssembly.validate(wasm)) throw new Error('wasm patché invalide');
 await override(`${ARTIFACTS}KisakBlack-web.wasm`, wasm);
 
-let glue = (await cached(`${ARTIFACTS}KisakBlack-web.mjs`)).toString();
+let glue = await readFile(path.join(ROOT, 'engine', 'KisakBlack-web.mjs'), 'utf8');
 glue = replaceOnce(glue, 'wgpuDeviceHasFeature:_wgpuDeviceHasFeature}',
   'wgpuDeviceHasFeature:_wgpuDeviceHasFeature,kb_net_send:kbnet.send,kb_net_recv:kbnet.recv,kb_net_resolve:kbnet.resolve,kb_net_command:kbnet.nextCommand}', 'imports');
 glue = replaceOnce(glue, 'worker.postMessage({cmd:1,handlers,wasmMemory,wasmModule})',
   'worker.postMessage({cmd:1,handlers,wasmMemory,wasmModule,kbnet:kbnet.shared})', 'chargement des pthreads');
 glue = replaceOnce(glue, 'wasmMemory=msgData.wasmMemory;', 'wasmMemory=msgData.wasmMemory;kbnet.attach(wasmMemory,msgData.kbnet);', 'pthread');
 glue = replaceOnce(glue, 'worker.onmessage=e=>{var d=e.data;', 'worker.onmessage=e=>{var d=e.data;if(d.kbnet)return kbnet.forward(d.kbnet);', 'messages des pthreads');
-await override(`${ARTIFACTS}KisakBlack-web.mjs`, `import * as kbnet from "./kbnet.js";${glue}`);
-for (const file of ['kbnet.js', 'ring.js']) await copyFile(path.join(ROOT, 'web', file), path.join(ROOT, 'overrides', ARTIFACTS, file));
+await override(`${ARTIFACTS}KisakBlack-web.mjs`, `import * as kbnet from "../kbnet.js";${glue}`);
 
-const engine = replaceOnce((await cached('/bo1z/engine.js')).toString(), '    state.arguments = args;',
+const engine = replaceOnce(await readFile(path.join(ROOT, 'web', 'engine.js'), 'utf8'), '    state.arguments = args;',
   "    args.splice(args.indexOf('+devmap'), 0, '+set', 'monkeytoy', '0');\n    state.arguments = args;", 'arguments du moteur');
 await override('/bo1z/engine.js', engine);
 
 // La console attend le caractère 8 pour effacer, comme WM_CHAR sous Windows ; Cmd+V intercepté bloquait l'événement paste.
-let input = (await cached('/bo1z/input.js')).toString();
+let input = await readFile(path.join(ROOT, 'web', 'input.js'), 'utf8');
 input = replaceOnce(input, "    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) emit({ kind: 'char', char: event.key.codePointAt(0) });\n",
   "    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) emit({ kind: 'char', char: event.key.codePointAt(0) });\n    else if (event.key === 'Backspace') emit({ kind: 'char', char: 8 });\n", 'effacement');
 input = replaceOnce(input, '    if (key === undefined) return;\n    event.preventDefault();\n',
@@ -184,7 +182,7 @@ input = replaceOnce(input, "  on(document, 'keyup', event => {\n",
 await override('/bo1z/input.js', input);
 
 // landing.js n'est pas en UTF-8 : l'import s'ajoute aux octets d'origine.
-await override('/bo1z/landing.js', Buffer.concat([await cached('/bo1z/landing.js'), Buffer.from("\nimport './multiplayer.js';\n")]));
+await override('/bo1z/landing.js', Buffer.concat([await readFile(path.join(ROOT, 'web', 'landing.js')), Buffer.from("\nimport './multiplayer.js';\n")]));
 await copyFile(path.join(ROOT, 'web', 'multiplayer.js'), path.join(ROOT, 'overrides', 'bo1z', 'multiplayer.js'));
 
 console.log(`wasm patché : ${wasm.length} octets, ${IMPORTS.length} imports`);
