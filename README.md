@@ -68,16 +68,15 @@ for c in $(git rev-list --reverse assets); do git push origin "${c}:refs/heads/a
 
 ```sh
 heroku create <nom> --region eu
-heroku config:set BO1Z_PASSWORD=<mot de passe>
 git push heroku main
 ```
 
-Les joueurs ouvrent `https://<nom>.herokuapp.com/bo1z` ; le navigateur demande le mot de passe (n'importe quel identifiant). Le build de déploiement (`heroku-postbuild`) patche `engine/` sans contacter vel.gg ; le site vient de `web/`. Le `Procfile` démarre sans pont UDP (`NET_PORT=0`, Heroku n'en reçoit pas) et sans cache disque (`CACHE=0`, disque éphémère) : seules les données du jeu transitent depuis vel.gg, à chaque premier chargement. La branche `assets` n'y part pas : Heroku refuse les dépôts de plus de 1 Go. Il faut une offre qui ne se met pas en veille (Basic), sinon les parties sont coupées après 30 minutes sans visite.
+Les joueurs ouvrent `https://<nom>.herokuapp.com/bo1z`. Le build de déploiement (`heroku-postbuild`) patche `engine/` sans contacter vel.gg ; le site vient de `web/`. Le `Procfile` démarre sans pont UDP (`NET_PORT=0`, Heroku n'en reçoit pas) et sans cache disque (`CACHE=0`, disque éphémère) : seules les données du jeu transitent depuis vel.gg, à chaque premier chargement. La branche `assets` n'y part pas : Heroku refuse les dépôts de plus de 1 Go. Il faut une offre qui ne se met pas en veille (Basic), sinon les parties sont coupées après 30 minutes sans visite.
 
-L'adresse étant publique, elle relaie le jeu d'Activision : garder `BO1Z_PASSWORD` et un usage privé.
+Le site n'a pas de mot de passe : quiconque connaît l'adresse peut y jouer, et elle relaie le jeu d'Activision.
 
 ## Tests
 
-`npm test` fait passer un datagramme d'un relais à l'autre, vérifie le salon (numérotation, acheminement, départs, origine, mot de passe, ping de maintien), le service du site, des pages de carte et du cache (longueur, plages, pages de salon), les files partagées avec de vrais threads et le réécrivain de wasm sur un module minimal.
+`npm test` fait passer un datagramme d'un relais à l'autre, vérifie le salon (numérotation, acheminement, départs, origine, ping de maintien), le service du site, des pages de carte et du cache (longueur, plages, pages de salon), les files partagées avec de vrais threads et le réécrivain de wasm sur un module minimal.
 
 Node 22.15 ou plus récent (zstd dans `node:zlib`) ; Heroku utilise Node 24.

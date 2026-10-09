@@ -44,15 +44,6 @@ test('une page d’une autre origine ne peut pas entrer dans un salon', async t 
   assert.equal(event.type, 'error');
 });
 
-test('avec BO1Z_PASSWORD, le site exige le mot de passe', async t => {
-  const child = await relay(8613, 0, { BO1Z_PASSWORD: 'zombies' });
-  t.after(() => child.kill());
-  const url = 'http://127.0.0.1:8613/bo1z/telemetry';
-  assert.equal((await fetch(url)).status, 401);
-  assert.equal((await fetch(url, { headers: { authorization: `Basic ${btoa('ami:mauvais')}` } })).status, 401);
-  assert.equal((await fetch(url, { headers: { authorization: `Basic ${btoa('ami:zombies')}` } })).status, 200);
-});
-
 test('la racine mène au menu et /rooms liste les salons avec leur carte et les pseudos de leurs joueurs', async t => {
   const child = await relay(8614, 0);
   t.after(() => child.kill());
