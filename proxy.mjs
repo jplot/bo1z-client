@@ -14,7 +14,6 @@ const HOST = process.env.HOST ?? '127.0.0.1';
 const PORT = Number(process.env.PORT ?? 8484);
 const NET_PORT = Number(process.env.NET_PORT ?? 3074);
 const CACHE = process.env.CACHE !== '0';
-const PASSWORD = process.env.BO1Z_PASSWORD;
 const ICE_SERVERS = JSON.parse(process.env.ICE_SERVERS ?? '[{"urls":"stun:stun.l.google.com:19302"}]');
 const OVERRIDES = path.join(import.meta.dirname, 'overrides');
 const WEB = path.join(import.meta.dirname, 'web');
@@ -28,9 +27,6 @@ const ISOLATION = {
 const TYPES = { '.wasm': 'application/wasm', '.mjs': 'text/javascript', '.js': 'text/javascript', '.html': 'text/html', '.css': 'text/css', '.json': 'application/json' };
 
 const rooms = signaling(ICE_SERVERS);
-const digest = text => createHash('sha256').update(text).digest();
-const authorized = req => !PASSWORD
-  || timingSafeEqual(digest(Buffer.from(req.headers.authorization?.split(' ')[1] ?? '', 'base64').toString().replace(/^[^:]*:/, '')), digest(PASSWORD));
 
 // telemetry.js n'envoie rien tant que sa sonde GET ne reçoit pas { enabled: true } ; ses envois restent sur ce poste.
 async function telemetry(req, res) {
@@ -73,7 +69,6 @@ async function serve(req, res, status, headers, body) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://127.0.0.1');
   try {
-    if (!authorized(req)) return res.writeHead(401, { 'www-authenticate': 'Basic realm="bo1z"' }).end();
     if (url.pathname.endsWith('/telemetry')) return await telemetry(req, res);
     if (url.pathname === '/rooms') return res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify(url.searchParams.has('code') ? rooms.find(url.searchParams.get('code')) : rooms.list()));
     if (url.pathname === '/') return res.writeHead(302, { location: `/bo1z${url.search}` }).end();
