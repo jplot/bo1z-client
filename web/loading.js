@@ -183,7 +183,7 @@ function render() {
   if (done) return;
   // Le clic doit atteindre play.js lui-même : relayé depuis cet écran, Chrome refusait la capture de la souris.
   root.classList.toggle('kb-ready', screen === 'landing' || (screen === 'ready' && !linkPending()));
-  set($('.kb-kicker'), 'textContent', roomName ? `Salon ${roomName}${role() === 'host' ? ' · tu es l’hôte' : ''}`
+  set($('.kb-kicker'), 'textContent', roomName ? `Salon${query.get('private') === '1' ? ' privé' : ''} ${roomName}`
     : `Partie solo${query.get('horde') === '1' ? ' · Mode Enfer' : ''}`);
   for (const step of steps) {
     set(step.item, 'className', step.state(screen));

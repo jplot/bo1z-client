@@ -68,6 +68,22 @@ test('la racine mène au menu et /rooms liste les salons avec leur carte et les 
   guest.close();
 });
 
+test('un salon privé manque à /rooms mais /rooms?code= le trouve, comme un salon public', async t => {
+  const child = await relay(8615, 0);
+  t.after(() => child.kill());
+  const secret = new WebSocket('ws://127.0.0.1:8615/signal?room=MZTR&map=cotd&player=Ines&private=1', { headers: { origin: 'http://127.0.0.1:8615' } });
+  await once(secret, 'message');
+  const open = join(8615, 'KXQZ', undefined, 'moon', 'Thomas');
+  await open.next();
+  const rooms = async query => (await fetch(`http://127.0.0.1:8615/rooms${query}`)).json();
+  assert.deepEqual((await rooms('')).map(room => room.name), ['KXQZ']);
+  assert.deepEqual(await rooms('?code=MZTR'), [{ name: 'MZTR', map: 'cotd', private: true, players: 1, members: [{ label: '10.0.0.1', pseudo: 'Ines' }] }]);
+  assert.deepEqual((await rooms('?code=KXQZ')).map(room => room.name), ['KXQZ']);
+  assert.deepEqual(await rooms('?code=BRTM'), []);
+  secret.close();
+  open.close();
+});
+
 const packet = (from, seq) => {
   const body = new Uint8Array(3 + (seq * 37) % 1200);
   body[0] = from; body[1] = seq >> 8; body[2] = seq & 0xff;

@@ -20,7 +20,7 @@ const eraTitle = era => Object.assign(document.createElement('h3'), { className:
 
 const layers = [...document.querySelectorAll('.bg div')];
 const codeBoxes = [...document.querySelectorAll('.code input')];
-let front = 0, rooms = [], shown = '', view = 'grid', picking = false, hovering = false, clearTimer = 0, selected = null;
+let front = 0, rooms = [], shown = '', typed = '', view = 'grid', picking = false, hovering = false, clearTimer = 0, selected = null;
 let hell = read(HELL_KEY) === '1', invited = new URLSearchParams(location.search).get('room');
 
 const off = map => hell && !map.horde && !picking;
@@ -35,17 +35,26 @@ function pick(map) {
   else go(map, hell && map.horde ? { horde: '1' } : {});
 }
 
+async function lookup(code) {
+  try {
+    const response = await fetch(`/rooms?code=${code}`, { cache: 'no-store' });
+    return response.ok ? (await response.json())[0] ?? null : null;
+  } catch {
+    return null;
+  }
+}
+
 // Le premier arrivé d'un salon en est l'hôte : un code déjà pris ferait rejoindre la partie d'un autre, sur sa carte.
-function createRoom(map) {
+async function createRoom(map) {
   let name;
   do name = Array.from({ length: 4 }, () => CODE[Math.floor(Math.random() * CODE.length)]).join('');
-  while (rooms.some(room => room.name === name));
-  go(map, { room: name });
+  while (await lookup(name));
+  go(map, { room: name, ...($('private').getAttribute('aria-checked') === 'true' && { private: '1' }) });
 }
 
 function join(room) {
   const map = bySlug(room.map);
-  if (map && !isFull(room)) go(map, { room: room.name });
+  if (map && !isFull(room)) go(map, { room: room.name, ...(room.private && { private: '1' }) });
 }
 
 function backdrop(map) {
@@ -182,10 +191,12 @@ function showTab(name) {
   $('hell').hidden = name !== 'solo' || picking;
   $('views').hidden = name !== 'solo';
   $('create').hidden = $('open-code').hidden = name !== 'multi';
+  $('private').hidden = !picking;
 }
 
 function startPicking() {
   picking = true;
+  $('private').setAttribute('aria-checked', 'false');
   renderMaps();
   showTab('solo');
 }
@@ -196,11 +207,16 @@ function stopPicking() {
   showTab('multi');
 }
 
-function codeState() {
+// Un salon privé n'est pas dans la liste : le code se vérifie auprès du serveur, et seule la dernière saisie compte.
+async function codeState() {
   const value = codeBoxes.map(box => box.value).join('');
-  const room = value.length === 4 && rooms.find(entry => entry.name === value);
+  typed = value;
+  $('join-code').disabled = true;
+  if (value.length < 4) return void ($('code-note').textContent = '');
+  const room = await lookup(value);
+  if (typed !== value) return null;
   $('join-code').disabled = !room || isFull(room);
-  $('code-note').textContent = value.length < 4 ? '' : !room ? 'Aucun salon avec ce code' : isFull(room) ? 'Ce salon est complet' : '';
+  $('code-note').textContent = !room ? 'Aucun salon avec ce code' : isFull(room) ? 'Ce salon est complet' : '';
   return room;
 }
 
@@ -218,8 +234,8 @@ function openCode(text = '') {
   fillCode(0, text);
 }
 
-function joinCode() {
-  const room = codeState();
+async function joinCode() {
+  const room = await codeState();
   if (!room || isFull(room)) return;
   $('joincode').close();
   join(room);
@@ -253,13 +269,12 @@ codeBoxes.forEach((box, k) => {
     if (event.metaKey || event.ctrlKey || event.altKey || event.key === 'Tab') return;
     event.preventDefault();
     if (/^[a-z]$/i.test(event.key)) fillCode(k, event.key);
-    else if (event.key === 'Backspace' && !box.value && k > 0) { codeBoxes[k - 1].value = ''; codeBoxes[k - 1].focus(); }
-    else if (event.key === 'Backspace' || event.key === 'Delete') box.value = '';
+    else if (event.key === 'Backspace' && !box.value && k > 0) { codeBoxes[k - 1].value = ''; codeBoxes[k - 1].focus(); codeState(); }
+    else if (event.key === 'Backspace' || event.key === 'Delete') { box.value = ''; codeState(); }
     else if (event.key === 'ArrowLeft' && k > 0) codeBoxes[k - 1].focus();
     else if (event.key === 'ArrowRight' && k < codeBoxes.length - 1) codeBoxes[k + 1].focus();
     else if (event.key === 'Enter') joinCode();
     else if (event.key === 'Escape') $('joincode').close();
-    codeState();
   });
   box.addEventListener('paste', event => { event.preventDefault(); fillCode(k, event.clipboardData.getData('text')); });
   box.addEventListener('input', () => fillCode(k, box.value));
@@ -278,6 +293,7 @@ $('tab-solo').addEventListener('click', () => showTab('solo'));
 $('tab-multi').addEventListener('click', () => showTab('multi'));
 $('create').addEventListener('click', startPicking);
 $('cancel-pick').addEventListener('click', stopPicking);
+$('private').addEventListener('click', () => $('private').setAttribute('aria-checked', String($('private').getAttribute('aria-checked') !== 'true')));
 $('open-code').addEventListener('click', () => openCode());
 $('join-code').addEventListener('click', joinCode);
 for (const button of document.querySelectorAll('.views button')) {

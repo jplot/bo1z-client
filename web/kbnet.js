@@ -124,8 +124,8 @@ const HOST_LABEL = '10.0.0.1';
 // Une liaison directe s'ouvre en une seconde environ : au-delà, l'invité passe par le relais du serveur (/signal).
 const RELAY_AFTER = 5000;
 
-function room(name) {
-  const signal = new WebSocket(socketUrl('/signal', { room: name, map: location.pathname.split('/').filter(Boolean).pop(), player: pseudo() }));
+function room(name, hidden) {
+  const signal = new WebSocket(socketUrl('/signal', { room: name, map: location.pathname.split('/').filter(Boolean).pop(), player: pseudo(), ...(hidden && { private: '1' }) }));
   const peers = new Map();
   let iceServers = [];
   let queue = Promise.resolve();
@@ -222,7 +222,7 @@ if (!globalThis.WorkerGlobalScope) {
   shared = { rings, mailbox };
   setInterval(postCommands, 50);
   const query = new URLSearchParams(location.search);
-  if (query.get('room')) transport = room(query.get('room'));
+  if (query.get('room')) transport = room(query.get('room'), query.get('private') === '1');
   else {
     transport = relay();
     whenPlaying(() => true, ...named(...(query.get('connect') ? [`connect ${query.get('connect')}`] : [])));

@@ -75,7 +75,7 @@ const server = http.createServer(async (req, res) => {
   try {
     if (!authorized(req)) return res.writeHead(401, { 'www-authenticate': 'Basic realm="bo1z"' }).end();
     if (url.pathname.endsWith('/telemetry')) return await telemetry(req, res);
-    if (url.pathname === '/rooms') return res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify(rooms.list()));
+    if (url.pathname === '/rooms') return res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify(url.searchParams.has('code') ? rooms.find(url.searchParams.get('code')) : rooms.list()));
     if (url.pathname === '/') return res.writeHead(302, { location: `/bo1z${url.search}` }).end();
     if (req.method !== 'GET' && req.method !== 'HEAD') return res.writeHead(405).end();
     const local = await localFile(url.pathname);
