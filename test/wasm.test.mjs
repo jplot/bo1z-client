@@ -39,3 +39,14 @@ test('un import ajouté décale les fonctions définies partout où elles sont r
   assert.deepEqual(seen, [42]);
   assert.deepEqual([...parse(patched).names], [['log', 0], ['extra', 1], ['seven', 2], ['callSeven', 3]]);
 });
+
+test('un appel remplacé par une édition n’est pas renuméroté par-dessus', async () => {
+  const module = parse(tiny);
+  const { code, end } = module.bodies[1];
+  const patched = rebuild(module, {
+    imports: [{ module: 'env', name: 'extra', params: [I32], results: [] }],
+    edits: new Map([[2, [{ at: code, end: end - 1, bytes: [0x41, 9] }]]]),
+  });
+  const { instance } = await WebAssembly.instantiate(patched, { env: { log() {}, extra() {} } });
+  assert.equal(instance.exports.callSeven(), 9);
+});

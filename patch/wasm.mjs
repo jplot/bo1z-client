@@ -349,10 +349,12 @@ function codeSection(module, s, func, shift, edits) {
   r.u32();
   const w = new Writer().push(bytes.subarray(s.start, r.pos));
   module.bodies.forEach((body, i) => {
-    const list = [...(edits.get(importedFuncs + i) ?? [])];
+    const patches = edits.get(importedFuncs + i) ?? [];
+    const list = [...patches];
+    const replaced = at => patches.some(patch => at >= patch.at && at < patch.end);
     if (shift) {
       for (const ins of instructions(bytes, body.code, body.end))
-        if (ins.funcAt !== undefined && ins.index >= importedFuncs) list.push({ at: ins.funcAt, end: ins.funcEnd, bytes: leb(func(ins.index)) });
+        if (ins.funcAt !== undefined && ins.index >= importedFuncs && !replaced(ins.funcAt)) list.push({ at: ins.funcAt, end: ins.funcEnd, bytes: leb(func(ins.index)) });
     }
     if (!list.length) return w.push(bytes.subarray(body.head, body.end));
     list.sort((a, b) => a.at - b.at);
