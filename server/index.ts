@@ -22,6 +22,7 @@ const ICE_SERVERS = JSON.parse(process.env.ICE_SERVERS ?? '[{"urls":"stun:stun.l
 const ROOT = path.join(import.meta.dirname, '..');
 const OVERRIDES = path.join(ROOT, 'overrides');
 const DIST = path.join(ROOT, 'dist');
+const ASSETS = path.join(DIST, 'assets') + path.sep;
 const TELEMETRY = path.join(ROOT, 'telemetry');
 // Without cross-origin isolation there is no SharedArrayBuffer: the engine's pthreads do not start.
 const ISOLATION = {
@@ -36,7 +37,11 @@ await app.register(fastifyWebsocket, { options: { maxPayload: 64 * 1024 } });
 // The engine patched by the build (overrides/) wins over the compiled site (dist/, npm run build).
 await app.register(fastifyStatic, {
   root: [path.join(OVERRIDES, 'bo1z'), DIST], prefix: PREFIX,
-  setHeaders: reply => { reply.headers(ISOLATION); },
+  // Vite puts a content hash in every name under assets/: a cached copy never needs checking again.
+  setHeaders: (reply, file) => {
+    reply.headers(ISOLATION);
+    if (file.startsWith(ASSETS)) reply.header('cache-control', 'public, max-age=31536000, immutable');
+  },
 });
 app.removeAllContentTypeParsers();
 app.addContentTypeParser('*', { parseAs: 'buffer' }, (_request, body, done) => done(null, body));

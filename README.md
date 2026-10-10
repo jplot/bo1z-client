@@ -5,8 +5,8 @@ Black Ops Zombies dans le navigateur, à plusieurs. Le point de départ est le p
 ## Organisation
 
 - `server/` (Fastify, TypeScript exécuté tel quel par Node) : le relais (site, salons, pont UDP, cache des données du jeu).
-- `client/` : le site en TypeScript, compilé par Vite. Le menu (`index.html`, `menu/`) et la page de carte (`map.html`, `map/` : écran de chargement, reprise de la souris, encart F3) en Vue ; la partie (`game/` : déroulé, pont avec le moteur, entrées, son, télémétrie), qui expose son état à l'interface ; le réseau (`net/`) ; la liste de nos cartes (`catalog.ts`, partagée avec le serveur).
-- `web/` : copié tel quel par Vite : le téléchargeur et ses workers, et la colle générée du moteur (`artifacts/KisakBlack-web.mjs`), modifiée à la main là où la page s'y branche.
+- `client/` : le site en TypeScript, compilé par Vite. Le menu (`index.html`, `menu/`) et la page de carte (`map.html`, `map/` : écran de chargement, reprise de la souris, encart F3) en Vue ; la partie (`game/` : déroulé, pont avec le moteur, entrées, son, télémétrie), qui expose son état à l'interface ; le téléchargement des cartes dans le stockage du navigateur (`download/`, des workers) ; le réseau (`net/`) ; la liste de nos cartes (`catalog.ts`, partagée avec le serveur).
+- `web/` : copié tel quel par Vite : la colle générée du moteur (`artifacts/KisakBlack-web.mjs`), modifiée à la main là où la page s'y branche.
 - `dist/` : le site compilé que sert le relais (`npm run build`).
 - `engine/KisakBlack-web.wasm` : le moteur compilé par vel.gg à partir de KisakBlack (C++, GPL-3.0). Seul fichier qu'on ne peut modifier qu'en le patchant.
 - `patch/` : les patchs du wasm et le réécrivain qui les applique.

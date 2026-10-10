@@ -1,3 +1,4 @@
+import type { ManifestFile, Stream } from '../download/protocol.ts';
 import type { Shared } from '../net/lan.ts';
 import type { Mixer } from './audio-worklet.ts';
 import workletUrl from './audio-worklet.ts?worker&url';
@@ -29,8 +30,6 @@ type KisakModule = {
   kbVideo: { register(streams: Stream[]): void; setMaster(master: number): void; finishIntro(): void };
   PThread: { terminateAllThreads(): void };
 };
-type Stream = { kind: string; name?: string; path: string; mime: string };
-export type ManifestFile = { path: string; size: number; priority: string; fallback?: unknown };
 export type CrashDetail = { stack: string | null; source: string };
 type Choice = { renderer: 'webgl2' | 'webgpu'; reason: string; pipeline?: number };
 type GpuNavigator = { gpu?: { requestAdapter(options: object): Promise<{ features: Set<string> } | null> } };

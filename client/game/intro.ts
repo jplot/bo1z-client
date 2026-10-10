@@ -1,9 +1,9 @@
+import type { Stream } from '../download/protocol.ts';
 import { diagnostics } from './diagnostics.ts';
 
 // The "<map>_load" cinematic starts muted, restarts with sound at launch and plays on during the download; the engine glue
 // then adopts it (Module.kbIntro) and continues from its position. The glue writes adopted and ended into this object.
 export type Intro = { name: string; video: HTMLVideoElement; started: boolean; finished: string | null; adopted?: boolean; ended?: boolean };
-type Stream = { kind: string; name?: string; path: string; mime: string };
 
 let intro: Intro | null = null;
 let onFinish: (skipped: boolean) => void = () => {};

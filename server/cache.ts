@@ -21,8 +21,7 @@ type Meta = { status: number; headers: OutgoingHttpHeaders };
 type Hit = { meta: Meta; body: ReadStream; file: string; start: number; length: number };
 type Passed = { meta: Meta; body: IncomingMessage };
 
-// ?part=k is the k-th CHUNK-byte slice (transport.chunk in vel.gg's manifests), served decoded: download-worker.js only expects
-// its bytes. The rest of the query is ignored: the 17 ?map=… variants of engine-download-worker.js are identical.
+// ?part=k is the k-th CHUNK-byte slice (transport.chunk in vel.gg's manifests), served decoded: the download worker only expects its bytes.
 export const CHUNK = 8 * 1024 * 1024;
 
 export const cachePath = (url: URL) => path.join(CACHE, path.normalize(url.pathname));

@@ -1,13 +1,14 @@
 import { shallowReactive, watch } from 'vue';
+import type { Groups, Manifest, Reply } from '../download/protocol.ts';
 import * as net from '../net/link.ts';
 import { checkCapabilities, type Unsupported } from './capabilities.ts';
 import { sizeGameCanvas } from './canvas.ts';
 import { diagnostics } from './diagnostics.ts';
-import { type CrashDetail, createEngine, createPackGate, type Engine, glslPack, type ManifestFile, type PackGate, rendererChoice, rendererRoute } from './engine.ts';
+import { type CrashDetail, createEngine, createPackGate, type Engine, glslPack, type PackGate, rendererChoice, rendererRoute } from './engine.ts';
 import { hordeArguments } from './horde.ts';
 import { checkIntroClosed, currentIntro, finishIntro, introCovering, retireIntro, setupIntro, skipIntroOnInput, startIntro } from './intro.ts';
 import { createLoadbar, rememberEngineTime } from './loadbar.ts';
-import { BASE, connectTo, hiddenRoom, horde, map, opfsRoot, packBase, programsUrl, room } from './pack.ts';
+import { BASE, connectTo, hiddenRoom, horde, map, opfsRoot, pack, packBase, programsUrl, room } from './pack.ts';
 import { loadSettings } from './settings.ts';
 import { startTelemetry } from './telemetry.ts';
 
@@ -15,7 +16,6 @@ export type Screen = 'checking' | 'download' | 'loading' | 'ready' | 'playing' |
 // files: the browser storage could not read or write the files; not the connection.
 export type Failure = { kind: Unsupported['kind'] } | { kind: 'quota'; missingBytes: number | null } | { kind: 'storage' }
   | { kind: 'download'; files: boolean } | { kind: 'engine'; memory: boolean };
-export type Groups = Record<string, [number, number]>;
 
 // declined: mouse or sound refused on the last click; resume: in game without the mouse or a game menu.
 export const view = shallowReactive({
@@ -23,15 +23,6 @@ export const view = shallowReactive({
   failure: null as Failure | null, declined: false, resume: false, report: '',
 });
 
-type Manifest = { version: string; files: (ManifestFile & { path: string })[]; streams?: { kind: string; name?: string; path: string; mime: string }[] };
-type WorkerMessage =
-  | { type: 'manifest'; manifest: Manifest }
-  | { type: 'file-ready'; path: string }
-  | { type: 'cache-status'; manifest: Manifest; ready: boolean; missingBytes: number }
-  | { type: 'progress'; priority: string; completed: number; total: number; groups: Groups }
-  | { type: 'boot-ready'; manifest: Manifest }
-  | { type: 'complete' }
-  | { type: 'error'; message: string; name: string };
 
 // The load cinematic plays at 10 % volume (-20 dB) unless the player set one; in game, the chosen volume.
 const LOAD_VOLUME = 0.1;
@@ -39,11 +30,9 @@ const MEMORY = /out of memory|\bOOM\b|allocat.*memory|memory.*allocat/i;
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const settings = loadSettings();
 const telemetry = startTelemetry(BASE, { screen: () => view.screen, engine: () => engine, errorKind: () => view.failure?.kind ?? null });
-// The download worker reads its map from its URL, as maps.js did for the page.
-const workerQuery = [map.first ? '' : `map=${map.zone}`, horde ? 'mode=horde' : '', 'packOrigin=0'].filter(Boolean).join('&');
 
 let downloader: Worker | null = null, idle: Worker | null = null, engine: Engine | null = null, gate: PackGate | null = null;
-let manifest: Manifest | null = null, cache: Extract<WorkerMessage, { type: 'cache-status' }> | null = null, want: string[] = [];
+let manifest: Manifest | null = null, cache: Extract<Reply, { type: 'cache-status' }> | null = null, want: string[] = [];
 let downloading = false, booted = false, entering = false, quitting = false;
 let loadbar: ReturnType<typeof createLoadbar> | null = null;
 let master = LOAD_VOLUME;
@@ -78,19 +67,19 @@ function post(type: 'inspect' | 'download') {
   const worker = downloader!;
   rendererChoice().then(choice => {
     want = choice.renderer === 'webgl2' ? [glslPack] : [];
-    worker.postMessage({ type, order: 'b3', want });
+    worker.postMessage({ type, pack, want });
   });
 }
 
 function newDownloader() {
   idle = null;
   downloader?.terminate();
-  const worker = downloader = new Worker(`${BASE}engine-download-worker.js?${workerQuery}`, { type: 'module' });
+  const worker = downloader = new Worker(new URL('../download/worker.ts', import.meta.url), { type: 'module' });
   worker.onerror = event => {
     event.preventDefault();
-    downloadError(event.message || 'The download worker could not start.', '');
+    downloadError(event.message || 'The download worker could not start.', '', false);
   };
-  worker.onmessage = ({ data }: MessageEvent<WorkerMessage>) => {
+  worker.onmessage = ({ data }: MessageEvent<Reply>) => {
     if (data.type === 'manifest' && downloading && !booted) {
       manifest = data.manifest;
       diagnostics.timings.manifest = performance.now();
@@ -119,11 +108,11 @@ function newDownloader() {
     } else if (data.type === 'complete') {
       downloading = false;
       worker.terminate();
-    } else if (data.type === 'error') downloadError(data.message, data.name);
+    } else if (data.type === 'error') downloadError(data.message, data.name, data.storage);
   };
 }
 
-function downloadError(message: string, name: string) {
+function downloadError(message: string, name: string, storage: boolean) {
   telemetry.error('download', `${name} ${message}`);
   downloading = false;
   idle = null;
@@ -133,7 +122,7 @@ function downloadError(message: string, name: string) {
   if (booted) return;
   if (name === 'QuotaExceededError') fail({ kind: 'quota', missingBytes: null });
   else if (/SecurityError|NotAllowedError/.test(name)) fail({ kind: 'storage' });
-  else fail({ kind: 'download', files: /^OPFS /.test(message) });
+  else fail({ kind: 'download', files: storage });
 }
 
 function inspect() {
@@ -163,7 +152,7 @@ async function begin() {
     idle = null;
     post('download');
   } catch (error) {
-    downloadError((error as Error).message, (error as Error).name);
+    downloadError((error as Error).message, (error as Error).name, false);
   }
 }
 
