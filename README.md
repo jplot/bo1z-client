@@ -5,7 +5,7 @@ Black Ops Zombies dans le navigateur, à plusieurs. Le point de départ est le p
 ## Organisation
 
 - `server/` (Fastify, TypeScript exécuté tel quel par Node) : le relais (site, salons, pont UDP, cache des données du jeu).
-- `client/` : le site en TypeScript, compilé par Vite. Le menu (`index.html`, `menu/`) et la page de carte (`map.html`, `map/` : écran de chargement, reprise de la souris, encart F3) en Vue ; la partie (`game/` : déroulé, pont avec le moteur, entrées, son, télémétrie), qui expose son état à l'interface ; le téléchargement des cartes dans le stockage du navigateur (`download/`, des workers) ; le réseau (`net/`) ; la liste de nos cartes (`catalog.ts`, partagée avec le serveur).
+- `client/` : le site en TypeScript, compilé par Vite. Une seule page (`index.html`, `main.ts`) qui ouvre le menu (`menu/`) ou une carte (`map/` : écran de chargement, reprise de la souris, encart F3) selon l'adresse, en Vue ; la partie (`game/` : déroulé, pont avec le moteur, entrées, son, télémétrie), qui expose son état à l'interface ; le téléchargement des cartes dans le stockage du navigateur (`download/`, des workers) ; le réseau (`net/`) ; la liste de nos cartes (`catalog.ts`, partagée avec le serveur).
 - `dist/` : le site compilé que sert le relais (`npm run build`).
 - `engine/` : le moteur compilé par vel.gg à partir de KisakBlack (C++, GPL-3.0), `KisakBlack-web.wasm`, qu'on ne peut modifier qu'en le patchant, et sa colle générée, `KisakBlack-web.mjs`, modifiée à la main là où la page s'y branche.
 - `patch/` : les patchs du wasm et le réécrivain qui les applique.
@@ -20,7 +20,7 @@ node server/index.ts   # port 8484, ou PORT=... ; site à la racine, ou PREFIX=/
 
 Puis ouvrir http://127.0.0.1:8484 dans Chrome.
 
-- Le relais sert `dist/`, puis les pages de carte rendues depuis `dist/map.html`, et enfin les données du jeu depuis `cache/`.
+- Le relais sert `dist/`, puis `dist/index.html` à l'adresse de chaque carte, et enfin les données du jeu depuis `cache/`.
 - `cache/` garde les données du jeu en clair, rangées comme sur vel.gg, sans jamais les rafraîchir ; le relais y découpe à la volée les morceaux `?part=k` que demande le jeu. Ce qui manque est téléchargé chez vel.gg.
 - La télémétrie du site reste sur ce poste : seules les pages ouvertes sur cette machine l'envoient, ou toutes avec `TELEMETRY=1` (pour les joueurs du réseau local ; Heroku ne la pose pas). Chaque envoi (plantage avec les 300 dernières lignes de la console du moteur, erreurs, fin de session) est ajouté à `telemetry/<PORT>.jsonl`.
 - `ws://127.0.0.1:<PORT>/kbnet` relie la page au port UDP `NET_PORT` (3074 par défaut, le port que le jeu prend quand `connect` n'en précise pas), ouvert sur le réseau local : le relais affiche au démarrage les adresses à donner aux autres joueurs.

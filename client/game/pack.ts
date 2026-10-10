@@ -3,7 +3,7 @@ import type { Pack } from '../download/protocol.ts';
 
 // Map pages are served at <prefix><slug>: their directory is the site root, whatever the prefix.
 export const BASE = new URL('.', location.href).pathname;
-export const map = MAPS.find(entry => entry.zone === document.documentElement.dataset.map) ?? MAPS.find(entry => entry.first)!;
+export const map = MAPS.find(entry => entry.slug === location.pathname.split('/').pop())!;
 const query = new URLSearchParams(location.search);
 export const horde = query.get('horde') === '1' && Boolean(map.horde);
 export const room = query.get('room');

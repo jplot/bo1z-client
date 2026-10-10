@@ -28,7 +28,7 @@ export default defineConfig({
     emptyOutDir: true,
     target: 'es2024',
     rolldownOptions: {
-      input: { index: client('index.html'), map: client('map.html'), kbnet: client('net/engine.ts') },
+      input: { index: client('index.html'), kbnet: client('net/engine.ts') },
       preserveEntrySignatures: 'exports-only',
       output: { entryFileNames: chunk => (chunk.name === 'kbnet' ? 'kbnet.js' : 'assets/[name]-[hash].js') },
     },

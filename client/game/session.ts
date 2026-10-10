@@ -27,10 +27,10 @@ export const view = shallowReactive({
 // The load cinematic plays at 10 % volume (-20 dB) unless the player set one; in game, the chosen volume.
 const LOAD_VOLUME = 0.1;
 const MEMORY = /out of memory|\bOOM\b|allocat.*memory|memory.*allocat/i;
-const canvas = document.getElementById('game') as HTMLCanvasElement;
 const settings = loadSettings();
 const telemetry = startTelemetry(BASE, { screen: () => view.screen, engine: () => engine, errorKind: () => view.failure?.kind ?? null });
 
+let canvas: HTMLCanvasElement;
 let downloader: Worker | null = null, idle: Worker | null = null, engine: Engine | null = null, gate: PackGate | null = null;
 let manifest: Manifest | null = null, cache: Extract<Reply, { type: 'cache-status' }> | null = null, want: string[] = [];
 let downloading = false, booted = false, entering = false, quitting = false;
@@ -278,7 +278,8 @@ function onKey(event: KeyboardEvent) {
   enter();
 }
 
-export async function startSession() {
+export async function startSession(game: HTMLCanvasElement) {
+  canvas = game;
   document.addEventListener('keydown', onKey, true);
   skipIntroOnInput(() => view.screen === 'playing');
   addEventListener('error', event => crash(event.error?.message ?? event.message, { stack: event.error?.stack ?? null, source: `window-error ${event.filename}:${event.lineno}:${event.colno}` }));

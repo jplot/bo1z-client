@@ -177,4 +177,4 @@
     .rlist .line { grid-template-columns: 72px minmax(0, 1fr) auto; }
     .rlist .line > :is(.cell, .party, .count) { display: none; }
   }
-  #menu { height: 100%; }
+  #app { height: 100%; }

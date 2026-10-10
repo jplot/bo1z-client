@@ -4,14 +4,13 @@ import { networkInterfaces } from 'node:os';
 import test from 'node:test';
 import { relay } from './relay.ts';
 
-test('une page de carte est rendue depuis client/map.html ; avec un / final, elle y renvoie', async t => {
+test('une page de carte est la page du site, isolée comme elle ; avec un / final, elle y renvoie', async t => {
   const child = await relay(8616, 0);
   t.after(() => child.kill());
   const moon = await fetch('http://127.0.0.1:8616/moon?room=soiree');
-  assert.equal(moon.headers.get('content-type'), 'text/html');
-  const html = await moon.text();
-  assert.match(html, /<html lang="fr" data-map="zombie_moon">/);
-  assert.match(html, /<title>Moon<\/title>/);
+  assert.match(moon.headers.get('content-type')!, /^text\/html\b/);
+  assert.equal(moon.headers.get('cross-origin-embedder-policy'), 'require-corp');
+  assert.equal(await moon.text(), await readFile(new URL('../dist/index.html', import.meta.url), 'utf8'));
   const slash = await fetch('http://127.0.0.1:8616/verruckt/?room=soiree', { redirect: 'manual' });
   assert.equal(slash.headers.get('location'), '/verruckt?room=soiree');
 });
@@ -21,7 +20,7 @@ test('le menu et le site sont servis depuis dist/ à la racine, la colle du mote
   t.after(() => child.kill());
   const menu = await fetch('http://127.0.0.1:8617/?room=soiree');
   assert.match(menu.headers.get('content-type')!, /^text\/html\b/);
-  assert.match(await menu.text(), /<div id="menu"><\/div>/);
+  assert.match(await menu.text(), /<div id="app"><\/div>/);
   const glue = await fetch('http://127.0.0.1:8617/artifacts/KisakBlack-web.mjs');
   assert.match(glue.headers.get('content-type')!, /^(text|application)\/javascript\b/);
   assert.equal(await glue.text(), await readFile(new URL('../engine/KisakBlack-web.mjs', import.meta.url), 'utf8'));
@@ -39,8 +38,8 @@ test('avec PREFIX=/bo1z, le site est servi sous /bo1z/ et la racine y mène', as
   t.after(() => child.kill());
   const at = (path: string) => fetch(`http://127.0.0.1:8621${path}`, { redirect: 'manual' });
   for (const [from, to] of [['/?room=soiree', '/bo1z/?room=soiree'], ['/bo1z', '/bo1z/']]) assert.equal((await at(from)).headers.get('location'), to);
-  assert.match(await (await at('/bo1z/?room=soiree')).text(), /<div id="menu"><\/div>/);
-  assert.match(await (await at('/bo1z/verruckt')).text(), /<title>Verrückt<\/title>/);
+  assert.match(await (await at('/bo1z/?room=soiree')).text(), /<div id="app"><\/div>/);
+  assert.match(await (await at('/bo1z/verruckt')).text(), /<div id="app"><\/div>/);
   assert.equal((await (await at('/bo1z/telemetry')).json()).enabled, true);
   assert.equal((await at('/verruckt')).status, 404);
 });

@@ -7,9 +7,9 @@ import { BlockList, isIPv6 } from 'node:net';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
+import { MAPS } from '../client/catalog.ts';
 import { udpBridge } from './bridge.ts';
 import { cached, pick, upstream } from './cache.ts';
-import { mapPage } from './pages.ts';
 import { rooms } from './rooms.ts';
 
 const HOST = process.env.HOST ?? '127.0.0.1';
@@ -105,10 +105,11 @@ app.setNotFoundHandler(async (request, reply) => {
   if (request.method !== 'GET' && request.method !== 'HEAD') return reply.code(405).send();
   if (!url.pathname.startsWith(PREFIX)) return reply.code(404).send();
   const site = url.pathname.slice(PREFIX.length - 1);
-  const page = await mapPage(site);
+  const slug = /^\/(\w+)\/?$/.exec(site)?.[1];
+  const page = MAPS.some(map => map.slug === slug);
   // Its URLs are relative to the site directory: under /<map>/, they would point at /<map>/assets/.
   if (page && site.endsWith('/')) return reply.redirect(`${PREFIX}${site.slice(1, -1)}${url.search}`, 302);
-  if (page) return serve(request, reply, 200, { 'content-type': 'text/html', 'content-length': Buffer.byteLength(page) }, Readable.from([page]));
+  if (page) return reply.sendFile('index.html');
   // On vel.gg, and so in cache/, everything lives under /bo1z/.
   const remote = new URL(`/bo1z${site}${url.search}`, 'http://127.0.0.1');
   const headers = Object.fromEntries(['user-agent', 'accept-encoding'].filter(name => request.headers[name]).map(name => [name, request.headers[name]]));
