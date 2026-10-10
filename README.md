@@ -4,7 +4,7 @@ Black Ops Zombies dans le navigateur, à plusieurs. Le point de départ est le p
 
 ## Organisation
 
-- `proxy.mjs` et `lib/` : le relais (site, salons, pont UDP, cache des données du jeu).
+- `server/` (Fastify, TypeScript exécuté tel quel par Node) et `lib/` : le relais (site, salons, pont UDP, cache des données du jeu).
 - `web/` : le site, servi sous `/bo1z` et modifié directement. Le menu (`index.html`, `menu.js`, `menu.css`), la liste de nos cartes (`catalog.mjs`), le gabarit des pages de carte (`map.html`) et leur écran de chargement (`loading.js`, `loading.css`), le réseau (`kbnet.js`, `ring.js`), et le reste du site repris de vel.gg (`play.js`, `engine.js`, `artifacts/KisakBlack-web.mjs`…).
 - `engine/KisakBlack-web.wasm` : le moteur compilé par vel.gg à partir de KisakBlack (C++, GPL-3.0). Seul fichier qu'on ne peut modifier qu'en le patchant.
 - `patch/` : les patchs du wasm et le réécrivain qui les applique.
@@ -14,7 +14,7 @@ Black Ops Zombies dans le navigateur, à plusieurs. Le point de départ est le p
 
 ```sh
 node patch/build.mjs   # écrit overrides/bo1z/artifacts/KisakBlack-web.wasm
-node proxy.mjs         # port 8484, ou PORT=...
+node server/index.ts   # port 8484, ou PORT=...
 ```
 
 Puis ouvrir http://127.0.0.1:8484/bo1z dans Chrome.
@@ -44,7 +44,7 @@ Sans passer par le menu, tous les joueurs ouvrent la même adresse avec `?room=<
 
 - Chaque joueur lance son relais et ouvre la carte sur son propre `127.0.0.1`.
 - L'hôte joue normalement. Les autres ajoutent `?connect=<ip de l'hôte>` à l'URL de la carte, par exemple `http://127.0.0.1:8484/bo1z/nacht?connect=192.168.1.20` : la carte se charge d'abord en local, puis la page envoie `connect` dès que la partie démarre.
-- Sur un seul Mac, le second joueur lance `PORT=8485 NET_PORT=3075 node proxy.mjs` et ouvre `http://127.0.0.1:8485/bo1z/nacht?connect=127.0.0.1:3074`.
+- Sur un seul Mac, le second joueur lance `PORT=8485 NET_PORT=3075 node server/index.ts` et ouvre `http://127.0.0.1:8485/bo1z/nacht?connect=127.0.0.1:3074`.
 - `kbnet` dans la console de la page donne les paquets envoyés, reçus et perdus ; `kbnet.command('connect 192.168.1.20')` envoie une commande à la console du jeu.
 
 ## Jouer sans vel.gg
@@ -81,4 +81,4 @@ Le site n'a pas de mot de passe : quiconque connaît l'adresse peut y jouer, et 
 
 Puis Playwright (`e2e/`) dans le Chrome installé, fenêtres visibles : sans fenêtre, Chrome refuse la capture de la souris et le clic à « Prêt » n'entre pas en jeu. Il vérifie le menu (les dix cartes, le Mode Enfer, les salons publics sans les privés, le code, la création d'un salon, les options), l'entrée en jeu en un clic sur chaque carte sans son introuvable, la pause en solo et son absence en salon, un salon à deux (liaison directe, départ de l'hôte), un salon privé rejoint par son code, et l'écran d'un téléchargement coupé. Les profils de Chrome restent dans `.cache/e2e` : le premier lancement télécharge les dix cartes (environ 9 Go, 5 minutes), les suivants les trouvent sur place. Le relais de test les sert depuis `cache` (branche `assets`) ; sans lui, il les tire de vel.gg.
 
-Node 22.15 ou plus récent (zstd dans `node:zlib`) ; Heroku utilise Node 24.
+Node 22.18 ou plus récent (TypeScript exécuté sans compilation, zstd dans `node:zlib`) ; Heroku utilise Node 24.

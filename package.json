@@ -6,11 +6,16 @@
     "node": "24.x"
   },
   "scripts": {
-    "start": "node proxy.mjs",
+    "start": "node server/index.ts",
     "heroku-postbuild": "node patch/build.mjs",
-    "test": "node --test 'test/*.test.mjs' && playwright test"
+    "test": "tsc && node --test 'test/*.test.mjs' && playwright test"
   },
   "devDependencies": {
-    "@playwright/test": "1.64.0"
+    "@playwright/test": "1.64.0",
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "fastify": "5.12.5"
   }
 }
