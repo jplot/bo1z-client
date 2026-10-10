@@ -7,7 +7,7 @@ export type Room = { name: string; map: string; private?: boolean; players: numb
 export { HOST } from '../net/lan.ts';
 export const ERA: Record<string, string> = { 'World at War': 'waw', 'Black Ops': 'bo' };
 const HELL_KEY = 'bo1z-horde';
-// Que des consonnes : aucun mot ne peut se former, et pas de O ni de I à confondre avec 0 et 1.
+// Consonants only: no word can form, and no O or I to mistake for 0 and 1.
 const CODE = 'BCDFGHJKLMNPQRSTVWXZ';
 
 export const read = (key: string) => { try { return localStorage.getItem(key); } catch { return null; } };
@@ -44,7 +44,7 @@ export async function lookup(code: string): Promise<Room | null> {
   }
 }
 
-// Le premier arrivé d'un salon en est l'hôte : un code déjà pris ferait rejoindre la partie d'un autre, sur sa carte.
+// A room's first arrival is its host: a code already taken would join someone else's game, on their map.
 async function createRoom(map: GameMap) {
   let name;
   do name = Array.from({ length: 4 }, () => CODE[Math.floor(Math.random() * CODE.length)]).join('');

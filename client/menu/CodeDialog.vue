@@ -9,7 +9,7 @@ const note = ref('');
 const disabled = ref(true);
 let typed = '';
 
-// Un salon privé n'est pas dans la liste : le code se vérifie auprès du serveur, et seule la dernière saisie compte.
+// A private room is not in the list: the code is checked with the server, and only the latest input counts.
 async function check(): Promise<Room | null | undefined> {
   const value = letters.value.join('');
   typed = value;

@@ -2,8 +2,8 @@ import { test as base, chromium, expect } from '@playwright/test';
 
 export const BASE = 'http://127.0.0.1:8630';
 
-// Fenêtre visible : sans elle, Chrome refuse la capture de la souris et le clic à « Prêt » n'entre pas en jeu.
-// Profils gardés dans .cache/e2e : chaque carte ne se télécharge qu'au premier lancement.
+// Headed: without a window, Chrome refuses the pointer lock and the click at "Prêt" does not enter the game.
+// Profiles kept in .cache/e2e: each map only downloads on the first run.
 async function browser(name, use) {
   const context = await chromium.launchPersistentContext(new URL(`../.cache/e2e/${name}`, import.meta.url).pathname,
     { channel: 'chrome', headless: false, viewport: { width: 1280, height: 720 } });
@@ -37,5 +37,5 @@ export async function paused(page) {
   return /"cl_paused" is: "(\d)/.exec(await line.jsonValue())?.[1];
 }
 
-// L'intro tenue par la page lève cl_paused au début de la partie : on attend qu'elle le rende.
+// The page's intro hold raises cl_paused at the start of the game: wait for it to clear.
 export const running = page => expect.poll(() => paused(page), { timeout: 30_000 }).toBe('0');

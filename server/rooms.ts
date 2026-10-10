@@ -5,8 +5,8 @@ import { keepalive } from './ws.ts';
 type Room = { map: string | null; private: boolean; peers: Map<string, WebSocket>; players: Map<string, string> };
 type Query = { room?: string; map?: string; player?: string; private?: string };
 
-// Mise en relation WebRTC : le serveur ne transporte que les offres, réponses et candidats, jamais les paquets du jeu.
-// Le moteur ne désigne un joueur que par une IPv4 : chaque page d'un salon reçoit 10.0.0.<n>, n = 1 étant l'hôte.
+// WebRTC signaling: the server only carries offers, answers and candidates, never game packets.
+// The engine only knows a player by an IPv4 address: each page in a room gets 10.0.0.<n>, n = 1 being the host.
 export function rooms(app: FastifyInstance, iceServers: unknown) {
   const all = new Map<string, Room>();
   const refuse = async (request: FastifyRequest, reply: FastifyReply) => {
@@ -23,7 +23,7 @@ export function rooms(app: FastifyInstance, iceServers: unknown) {
     const source = Buffer.from(label.split('.').map(Number));
     keepalive(socket);
     socket.on('message', (data: Buffer, binary: boolean) => {
-      // Relais quand la liaison directe échoue : [place de destination][paquet] arrive, [place d'origine][paquet] repart.
+      // Relay when the direct link fails: [destination label][packet] comes in, [source label][packet] goes out.
       if (binary) {
         if (data.length > 4) room.peers.get([...data.subarray(0, 4)].join('.'))?.send(Buffer.concat([source, data.subarray(4)]));
         return;

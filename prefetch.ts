@@ -16,8 +16,8 @@ type ManifestFile = Transport & { path: string; dxs?: number; opus?: number; fal
 
 const absent: string[] = [];
 
-// download-worker.js : ?part=k si br compte un morceau par tranche, sinon d'un bloc ; un son Opus arrive en .kop
-// (son SHA-256 est celui du .kop), plus le fichier d'origine pour les navigateurs sans AudioDecoder.
+// As download-worker.js: ?part=k when br counts one part per slice, else in one piece; an Opus sound comes as .kop
+// (its SHA-256 is the .kop's), plus the original file for browsers without AudioDecoder.
 function packFiles(root: string, chunk: number, file: ManifestFile): FileSpec[] {
   if (file.dxs) throw new Error(`${file.path} : transport DXS non géré`);
   const pack = `${root}pack/${file.path.split('/').map(encodeURIComponent).join('/')}`;

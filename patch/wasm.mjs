@@ -371,8 +371,8 @@ function codeSection(module, s, func, shift, edits) {
   return w.bytes();
 }
 
-// imports : fonctions ajoutées après les imports existants, donc chaque fonction définie avance de imports.length.
-// edits : Map(index de fonction d'origine → [{ at, end, bytes }]), positions absolues dans le binaire d'origine.
+// imports: functions added after the existing imports, so every defined function moves up by imports.length.
+// edits: Map(original function index → [{ at, end, bytes }]), absolute positions in the original binary.
 export function rebuild(module, { imports = [], edits = new Map() } = {}) {
   const { bytes, importedFuncs } = module;
   const shift = imports.length;

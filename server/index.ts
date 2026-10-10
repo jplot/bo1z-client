@@ -23,7 +23,7 @@ const ROOT = path.join(import.meta.dirname, '..');
 const OVERRIDES = path.join(ROOT, 'overrides');
 const DIST = path.join(ROOT, 'dist');
 const TELEMETRY = path.join(ROOT, 'telemetry');
-// Sans isolation cross-origin, pas de SharedArrayBuffer : les pthreads du moteur ne démarrent pas.
+// Without cross-origin isolation there is no SharedArrayBuffer: the engine's pthreads do not start.
 const ISOLATION = {
   'cross-origin-opener-policy': 'same-origin',
   'cross-origin-embedder-policy': 'require-corp',
@@ -31,9 +31,9 @@ const ISOLATION = {
 };
 
 const app = fastify();
-// Une trame WebSocket porte au plus un datagramme UDP (65 507 octets) et son en-tête de 6 octets.
+// A WebSocket frame carries at most one UDP datagram (65,507 bytes) and its 6-byte header.
 await app.register(fastifyWebsocket, { options: { maxPayload: 64 * 1024 } });
-// Le moteur patché par le build (overrides/) passe avant le site compilé (dist/, npm run build).
+// The engine patched by the build (overrides/) wins over the compiled site (dist/, npm run build).
 await app.register(fastifyStatic, {
   root: [path.join(OVERRIDES, 'bo1z'), DIST], prefix: PREFIX,
   setHeaders: reply => { reply.headers(ISOLATION); },
@@ -45,9 +45,9 @@ app.setErrorHandler((error: Error, request, reply) => {
   return reply.code(502).send();
 });
 
-// telemetry.js n'envoie rien tant que sa sonde GET ne reçoit pas { enabled: true } : seule une page ouverte sur ce poste l'obtient,
-// ou toute page avec TELEMETRY=1 (relais lancé chez soi pour les joueurs du réseau local ; le Procfile ne le pose pas).
-// Sur Heroku, l'interlocuteur est toujours le routeur : chaque joueur y écrivait ses relevés sur le disque du serveur.
+// Pages send nothing until their GET probe gets { enabled: true }: only pages opened on this machine do, or every page with
+// TELEMETRY=1 (a relay run at home for players on the local network; the Procfile does not set it). On Heroku the peer is
+// always the router: every player was writing records to the server's disk.
 const TELEMETRY_ALL = process.env.TELEMETRY === '1';
 const LOOPBACK = new BlockList();
 LOOPBACK.addSubnet('127.0.0.0', 8, 'ipv4');
@@ -68,8 +68,8 @@ app.route({
 rooms(app, ICE_SERVERS);
 if (NET_PORT) udpBridge(app, PORT, NET_PORT);
 
-// Redirections temporaires : le préfixe peut changer, un 301 resterait dans le navigateur. Les adresses en /bo1z/ d'avant
-// le préfixe réglable (liens de salon partagés compris) mènent à la même page sous PREFIX.
+// Temporary redirects: the prefix can change, and a 301 would stay in the browser. /bo1z/ URLs from before the configurable
+// prefix (shared room links included) lead to the same page under PREFIX.
 const under = (from: string) => async (request: FastifyRequest, reply: FastifyReply) => reply.redirect(`${PREFIX}${request.url.slice(from.length).replace(/^\//, '')}`, 302);
 if (PREFIX !== '/') {
   app.get('/', under('/'));
@@ -80,7 +80,7 @@ if (PREFIX !== '/bo1z/') {
   app.get('/bo1z/*', under('/bo1z'));
 }
 
-// Vidéos de chargement (<video>) et reprise d'un fichier entier par download-worker.js : servies depuis le cache, hors ligne compris.
+// Load videos (<video>) and whole-file resumes by download-worker.js: served from the cache, offline included.
 function byteRange(header: string | undefined, length: number) {
   const [, from, to] = /^bytes=(\d*)-(\d*)$/.exec(header ?? '') ?? [];
   if (!from && !to) return null;
@@ -96,7 +96,7 @@ function serve(request: FastifyRequest, reply: FastifyReply, status: number, hea
   return reply.send();
 }
 
-// Ce que @fastify/static ne trouve pas : pages de carte, puis données du jeu (cache local, ou vel.gg en passage direct).
+// What @fastify/static does not find: map pages, then game data (local cache, or straight from vel.gg).
 app.setNotFoundHandler(async (request, reply) => {
   const url = new URL(request.url, 'http://127.0.0.1');
   if (request.method !== 'GET' && request.method !== 'HEAD') return reply.code(405).send();
@@ -106,14 +106,14 @@ app.setNotFoundHandler(async (request, reply) => {
   // Its URLs are relative to the site directory: under /<map>/, they would point at /<map>/assets/.
   if (page && site.endsWith('/')) return reply.redirect(`${PREFIX}${site.slice(1, -1)}${url.search}`, 302);
   if (page) return serve(request, reply, 200, { 'content-type': 'text/html', 'content-length': Buffer.byteLength(page) }, Readable.from([page]));
-  // Chez vel.gg, et donc dans cache/, tout vit sous /bo1z/.
+  // On vel.gg, and so in cache/, everything lives under /bo1z/.
   const remote = new URL(`/bo1z${site}${url.search}`, 'http://127.0.0.1');
   const headers = Object.fromEntries(['user-agent', 'accept-encoding'].filter(name => request.headers[name]).map(name => [name, request.headers[name]]));
   if (!CACHE) {
     const response = await upstream(remote, request.headers.range ? { ...headers, range: request.headers.range } : headers);
     return serve(request, reply, response.statusCode!, pick(response.headers), response);
   }
-  // Le worker de vel.gg compare Content-Length à la taille attendue des fichiers téléchargés d'un seul bloc.
+  // The download worker checks Content-Length against the expected size of files fetched in one piece.
   const hit = await cached(remote, headers);
   if (!('file' in hit)) return serve(request, reply, hit.meta.status, hit.meta.headers, hit.body);
   const range = byteRange(request.headers.range, hit.length);

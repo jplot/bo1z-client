@@ -21,8 +21,8 @@ type Meta = { status: number; headers: OutgoingHttpHeaders };
 type Hit = { meta: Meta; body: ReadStream; file: string; start: number; length: number };
 type Passed = { meta: Meta; body: IncomingMessage };
 
-// ?part=k est la tranche k de CHUNK octets (transport.chunk des manifestes de vel.gg), servie en clair : download-worker.js
-// n'attend que ses octets. Le reste de la query est ignoré : les 17 variantes ?map=… d'engine-download-worker.js sont identiques.
+// ?part=k is the k-th CHUNK-byte slice (transport.chunk in vel.gg's manifests), served decoded: download-worker.js only expects
+// its bytes. The rest of the query is ignored: the 17 ?map=… variants of engine-download-worker.js are identical.
 export const CHUNK = 8 * 1024 * 1024;
 
 export const cachePath = (url: URL) => path.join(CACHE, path.normalize(url.pathname));
@@ -51,8 +51,8 @@ export const pick = (headers: IncomingHttpHeaders): OutgoingHttpHeaders => Objec
 export const upstream = (url: URL, headers: OutgoingHttpHeaders) => new Promise<IncomingMessage>((resolve, reject) =>
   https.get({ host: UPSTREAM, path: url.pathname + url.search, headers }, resolve).on('error', reject));
 
-// Le cache n'expire jamais : un wasm patché doit rester apparié aux scripts et aux packs de sa version.
-// Un morceau seul ne s'y range pas : prefetch.ts reconstitue le fichier entier et vérifie son SHA-256.
+// The cache never expires: a patched wasm must stay paired with the scripts and packs of its version.
+// A lone slice is never stored: prefetch.ts rebuilds the whole file and checks its SHA-256.
 export async function cached(url: URL, headers: OutgoingHttpHeaders): Promise<Hit | Passed> {
   const entry = locate(url);
   const hit = entry && await fromDisk(entry);

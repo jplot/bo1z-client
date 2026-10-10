@@ -1,5 +1,5 @@
-// Une file par sock, un seul producteur (la page) et un seul consommateur (le pthread qui appelle NET_GetLoopPacket
-// pour ce sock) : head et tail suffisent, à condition de les publier après l'écriture ou la lecture du slot.
+// One queue per sock, a single producer (the page) and a single consumer (the pthread calling NET_GetLoopPacket for that
+// sock): head and tail suffice, as long as they are published after the slot is written or read.
 export const SOCKS = 2;
 export const SLOT_DATA = 4096;
 const SLOTS = 64;
@@ -32,7 +32,7 @@ export function take(rings: SharedArrayBuffer, sock: number, copy: (address: Uin
   return true;
 }
 
-// Boîte aux lettres à un seul message : longueur en tête, publiée après le texte, remise à 0 par le lecteur une fois copié.
+// Single-message mailbox: length first, published after the text, reset to 0 by the reader once copied.
 export const MAILBOX_BYTES = 4 + 1024;
 
 export function post(mailbox: SharedArrayBuffer, bytes: Uint8Array) {

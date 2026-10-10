@@ -1,5 +1,5 @@
-// size : Go téléchargés depuis vel.gg au premier lancement (morceaux Brotli des manifestes du 2026-10-09).
-// first : Five garde les adresses racine du site (/manifest.json, /pack/, soit /bo1z/… chez vel.gg).
+// size: GB downloaded from vel.gg on first launch (Brotli parts of the 2026-10-09 manifests).
+// first: Five keeps the site's root URLs (/manifest.json, /pack/, that is /bo1z/… on vel.gg).
 // engineS: engine load seconds before any measurement on this machine (27 by default).
 export type GameMap = { era: string; slug: string; zone: string; name: string; place: string; size: number; horde?: boolean; first?: boolean; engineS?: number; desc: string };
 

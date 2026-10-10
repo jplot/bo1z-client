@@ -1,6 +1,6 @@
 import type { WebSocket } from 'ws';
 
-// Le routeur Heroku coupe une WebSocket restée 55 s sans un octet (H15) : le salon perdait alors ses joueurs.
+// Heroku's router cuts a WebSocket idle for 55 s (H15): the room then lost its players.
 const KEEPALIVE_MS = 30_000;
 
 export function keepalive(socket: Pick<WebSocket, 'ping' | 'on'>) {

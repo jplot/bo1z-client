@@ -7,7 +7,7 @@ import { keepalive } from './ws.ts';
 const lanAddresses = () => Object.values(networkInterfaces()).flat()
   .filter(address => address?.family === 'IPv4' && !address.internal).map(address => address!.address);
 
-// Charge UDP : sock émetteur, puis le paquet du moteur ; 0xFFFFFFFF en tête marque une commande hors-bande en texte.
+// UDP payload: sending sock, then the engine packet; a leading 0xFFFFFFFF marks an out-of-band text command.
 const describe = (payload: Buffer) => (payload.length >= 5 && payload.readInt32LE(1) === -1
   ? JSON.stringify(payload.subarray(5, 85).toString('latin1'))
   : `netchan ${payload.length - 1} octets`);
@@ -15,9 +15,9 @@ const trace = process.env.KBNET_TRACE === '1'
   ? (arrow: string, peer: string, payload: Buffer) => console.log(`${arrow} ${peer} sock ${payload[0]} ${describe(payload)}`)
   : () => {};
 
-// Datagrammes entre page et relais : 4 octets d'IPv4, 2 octets de port big-endian, puis la charge du moteur.
+// Datagrams between page and relay: 4 IPv4 bytes, a 2-byte big-endian port, then the engine payload.
 export function udpBridge(app: FastifyInstance, httpPort: number, udpPort: number) {
-  // Les WebSocket échappent à CORS : sans ce filtre, tout site ouvert pourrait émettre de l'UDP via le relais.
+  // WebSockets escape CORS: without this filter, any open site could send UDP through the relay.
   const origins = [`http://127.0.0.1:${httpPort}`, `http://localhost:${httpPort}`];
   const udp = dgram.createSocket('udp4');
   let page: WebSocket | null = null;
