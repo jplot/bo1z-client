@@ -16,12 +16,12 @@ test('une page de carte est rendue depuis web/map.html, avec ou sans / final', a
   assert.match(await (await fetch('http://127.0.0.1:8616/verruckt/')).text(), /<title>Verrückt<\/title>/);
 });
 
-test('le menu et le site sont servis depuis web/ à la racine, le moteur patché depuis overrides/', async t => {
+test('le menu et le site sont servis depuis dist/ à la racine, le moteur patché depuis overrides/', async t => {
   const child = await relay(8617, 0);
   t.after(() => child.kill());
   const menu = await fetch('http://127.0.0.1:8617/?room=soiree');
   assert.match(menu.headers.get('content-type'), /^text\/html\b/);
-  assert.match(await menu.text(), /<script type="module" src="menu.js">/);
+  assert.match(await menu.text(), /<div id="menu"><\/div>/);
   const play = await fetch('http://127.0.0.1:8617/play.js');
   assert.match(play.headers.get('content-type'), /^(text|application)\/javascript\b/);
   assert.equal(await play.text(), await readFile(new URL('../web/play.js', import.meta.url), 'utf8'));
@@ -32,7 +32,7 @@ test('avec PREFIX=/bo1z, le site est servi sous /bo1z/ et la racine y mène', as
   t.after(() => child.kill());
   const at = path => fetch(`http://127.0.0.1:8621${path}`, { redirect: 'manual' });
   for (const [from, to] of [['/?room=soiree', '/bo1z/?room=soiree'], ['/bo1z', '/bo1z/']]) assert.equal((await at(from)).headers.get('location'), to);
-  assert.match(await (await at('/bo1z/?room=soiree')).text(), /<script type="module" src="menu.js">/);
+  assert.match(await (await at('/bo1z/?room=soiree')).text(), /<div id="menu"><\/div>/);
   assert.match(await (await at('/bo1z/verruckt')).text(), /<title>Verrückt<\/title>/);
   assert.equal((await (await at('/bo1z/telemetry')).json()).enabled, true);
   assert.equal((await at('/verruckt')).status, 404);
