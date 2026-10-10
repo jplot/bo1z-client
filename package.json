@@ -8,7 +8,7 @@
   "scripts": {
     "build": "vite build",
     "start": "node server/index.ts",
-    "heroku-postbuild": "node patch/build.mjs && vite build",
+    "heroku-postbuild": "vite build",
     "test": "tsc && vue-tsc -p client && vite build && node --test 'test/*.test.mjs' && playwright test"
   },
   "devDependencies": {

@@ -6,30 +6,28 @@ Black Ops Zombies dans le navigateur, à plusieurs. Le point de départ est le p
 
 - `server/` (Fastify, TypeScript exécuté tel quel par Node) : le relais (site, salons, pont UDP, cache des données du jeu).
 - `client/` : le site en TypeScript, compilé par Vite. Le menu (`index.html`, `menu/`) et la page de carte (`map.html`, `map/` : écran de chargement, reprise de la souris, encart F3) en Vue ; la partie (`game/` : déroulé, pont avec le moteur, entrées, son, télémétrie), qui expose son état à l'interface ; le téléchargement des cartes dans le stockage du navigateur (`download/`, des workers) ; le réseau (`net/`) ; la liste de nos cartes (`catalog.ts`, partagée avec le serveur).
-- `web/` : copié tel quel par Vite : la colle générée du moteur (`artifacts/KisakBlack-web.mjs`), modifiée à la main là où la page s'y branche.
 - `dist/` : le site compilé que sert le relais (`npm run build`).
-- `engine/KisakBlack-web.wasm` : le moteur compilé par vel.gg à partir de KisakBlack (C++, GPL-3.0). Seul fichier qu'on ne peut modifier qu'en le patchant.
+- `engine/` : le moteur compilé par vel.gg à partir de KisakBlack (C++, GPL-3.0), `KisakBlack-web.wasm`, qu'on ne peut modifier qu'en le patchant, et sa colle générée, `KisakBlack-web.mjs`, modifiée à la main là où la page s'y branche.
 - `patch/` : les patchs du wasm et le réécrivain qui les applique.
 - branche `assets` : les données du jeu (cartes, manifestes, images, caches de shaders, vidéos), voir « Jouer sans vel.gg ».
 
 ## Lancer
 
 ```sh
-node patch/build.mjs   # écrit overrides/bo1z/artifacts/KisakBlack-web.wasm
-npm run build          # compile le site dans dist/ (à refaire après chaque modification de client/ ou web/)
+npm run build          # compile le site et patche le moteur dans dist/ (à refaire après chaque modification de client/, engine/ ou patch/)
 node server/index.ts   # port 8484, ou PORT=... ; site à la racine, ou PREFIX=/bo1z pour le servir sous un chemin
 ```
 
 Puis ouvrir http://127.0.0.1:8484 dans Chrome.
 
-- Le relais sert d'abord `overrides/` (le moteur patché), puis `dist/`, puis les pages de carte rendues depuis `dist/map.html`, et enfin les données du jeu depuis `cache/`.
+- Le relais sert `dist/`, puis les pages de carte rendues depuis `dist/map.html`, et enfin les données du jeu depuis `cache/`.
 - `cache/` garde les données du jeu en clair, rangées comme sur vel.gg, sans jamais les rafraîchir ; le relais y découpe à la volée les morceaux `?part=k` que demande le jeu. Ce qui manque est téléchargé chez vel.gg.
 - La télémétrie du site reste sur ce poste : seules les pages ouvertes sur cette machine l'envoient, ou toutes avec `TELEMETRY=1` (pour les joueurs du réseau local ; Heroku ne la pose pas). Chaque envoi (plantage avec les 300 dernières lignes de la console du moteur, erreurs, fin de session) est ajouté à `telemetry/<PORT>.jsonl`.
 - `ws://127.0.0.1:<PORT>/kbnet` relie la page au port UDP `NET_PORT` (3074 par défaut, le port que le jeu prend quand `connect` n'en précise pas), ouvert sur le réseau local : le relais affiche au démarrage les adresses à donner aux autres joueurs.
 
 ## Patcher le moteur
 
-`node patch/build.mjs` lit `engine/KisakBlack-web.wasm` et écrit le wasm patché dans `overrides/`, sans réseau : envoi, réception et `connect` vers une IPv4 passent par `kbnet.js`, la pause ne fige plus l'hôte d'une partie à plusieurs (en solo, Échap met toujours le jeu en pause), les assertions ne sont plus fatales. Le module JS qui charge le moteur (`web/artifacts/KisakBlack-web.mjs`) déclare les imports ajoutés et se modifie directement, comme tout le reste du site. `rm -r overrides` revient au moteur d'origine.
+`npm run build` patche `engine/KisakBlack-web.wasm` (`patch/engine.mjs`) et l'écrit dans `dist/artifacts/` à côté de la colle, sans réseau : envoi, réception et `connect` vers une IPv4 passent par `kbnet.js`, la pause ne fige plus l'hôte d'une partie à plusieurs (en solo, Échap met toujours le jeu en pause), les assertions ne sont plus fatales. La colle (`engine/KisakBlack-web.mjs`) déclare les imports ajoutés et se modifie directement, comme tout le reste du site.
 
 ## Jouer à plusieurs
 
@@ -74,7 +72,7 @@ heroku create <nom> --region eu
 git push heroku main
 ```
 
-Les joueurs ouvrent `https://<nom>.herokuapp.com/`. Le build de déploiement (`heroku-postbuild`) patche `engine/` sans contacter vel.gg et compile le site dans `dist/` (Vite). Le `Procfile` démarre à la racine (`PREFIX=` vide), sans pont UDP (`NET_PORT=0`, Heroku n'en reçoit pas) et sans cache disque (`CACHE=0`, disque éphémère) : seules les données du jeu transitent depuis vel.gg, à chaque premier chargement. La branche `assets` n'y part pas : Heroku refuse les dépôts de plus de 1 Go. Il faut une offre qui ne se met pas en veille (Basic), sinon les parties sont coupées après 30 minutes sans visite.
+Les joueurs ouvrent `https://<nom>.herokuapp.com/`. Le build de déploiement (`heroku-postbuild`) compile le site et patche le moteur dans `dist/` (Vite), sans contacter vel.gg. Le `Procfile` démarre à la racine (`PREFIX=` vide), sans pont UDP (`NET_PORT=0`, Heroku n'en reçoit pas) et sans cache disque (`CACHE=0`, disque éphémère) : seules les données du jeu transitent depuis vel.gg, à chaque premier chargement. La branche `assets` n'y part pas : Heroku refuse les dépôts de plus de 1 Go. Il faut une offre qui ne se met pas en veille (Basic), sinon les parties sont coupées après 30 minutes sans visite.
 
 Le site n'a pas de mot de passe : quiconque connaît l'adresse peut y jouer, et elle relaie le jeu d'Activision.
 

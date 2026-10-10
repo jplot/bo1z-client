@@ -1,16 +1,27 @@
 import vue from '@vitejs/plugin-vue';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
+import { patchEngine } from './patch/engine.mjs';
 
 const client = (file: string) => path.resolve(import.meta.dirname, 'client', file);
+const engine = (file: string) => readFile(path.resolve(import.meta.dirname, 'engine', file));
 
-// The engine glue, served outside the bundle, imports ../kbnet.js from artifacts/: this entry keeps that name and its exports.
-// The rest of web/ is copied as is.
+// The glue spawns its threads from its own URL and the engine runs the wasm next to it: both stay out of the bundle, in artifacts/.
+const artifacts: Plugin = {
+  name: 'bo1z-engine',
+  async generateBundle() {
+    this.emitFile({ type: 'asset', fileName: 'artifacts/KisakBlack-web.mjs', source: await engine('KisakBlack-web.mjs') });
+    this.emitFile({ type: 'asset', fileName: 'artifacts/KisakBlack-web.wasm', source: patchEngine(await engine('KisakBlack-web.wasm')) });
+  },
+};
+
+// The glue imports ../kbnet.js from artifacts/: this entry keeps that name and its exports.
 export default defineConfig({
   root: 'client',
-  plugins: [vue()],
+  plugins: [vue(), artifacts],
   base: './',
-  publicDir: path.resolve(import.meta.dirname, 'web'),
+  publicDir: false,
   worker: { format: 'es' },
   build: {
     outDir: path.resolve(import.meta.dirname, 'dist'),

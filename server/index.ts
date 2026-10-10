@@ -20,7 +20,6 @@ const TRIMMED = (process.env.PREFIX ?? '').replace(/^\/+|\/+$/g, '');
 const PREFIX = TRIMMED ? `/${TRIMMED}/` : '/';
 const ICE_SERVERS = JSON.parse(process.env.ICE_SERVERS ?? '[{"urls":"stun:stun.l.google.com:19302"}]');
 const ROOT = path.join(import.meta.dirname, '..');
-const OVERRIDES = path.join(ROOT, 'overrides');
 const DIST = path.join(ROOT, 'dist');
 const ASSETS = path.join(DIST, 'assets') + path.sep;
 const TELEMETRY = path.join(ROOT, 'telemetry');
@@ -34,9 +33,8 @@ const ISOLATION = {
 const app = fastify();
 // A WebSocket frame carries at most one UDP datagram (65,507 bytes) and its 6-byte header.
 await app.register(fastifyWebsocket, { options: { maxPayload: 64 * 1024 } });
-// The engine patched by the build (overrides/) wins over the compiled site (dist/, npm run build).
 await app.register(fastifyStatic, {
-  root: [path.join(OVERRIDES, 'bo1z'), DIST], prefix: PREFIX,
+  root: DIST, prefix: PREFIX,
   // Vite puts a content hash in every name under assets/: a cached copy never needs checking again.
   setHeaders: (reply, file) => {
     reply.headers(ISOLATION);

@@ -16,7 +16,7 @@ test('une page de carte est rendue depuis client/map.html ; avec un / final, ell
   assert.equal(slash.headers.get('location'), '/verruckt?room=soiree');
 });
 
-test('le menu et le site sont servis depuis dist/ à la racine, la colle du moteur avec ses crochets, les fichiers hachés en cache pour de bon', async t => {
+test('le menu et le site sont servis depuis dist/ à la racine, la colle du moteur avec ses crochets et le wasm patché, les fichiers hachés en cache pour de bon', async t => {
   const child = await relay(8617, 0);
   t.after(() => child.kill());
   const menu = await fetch('http://127.0.0.1:8617/?room=soiree');
@@ -24,7 +24,9 @@ test('le menu et le site sont servis depuis dist/ à la racine, la colle du mote
   assert.match(await menu.text(), /<div id="menu"><\/div>/);
   const glue = await fetch('http://127.0.0.1:8617/artifacts/KisakBlack-web.mjs');
   assert.match(glue.headers.get('content-type'), /^(text|application)\/javascript\b/);
-  assert.equal(await glue.text(), await readFile(new URL('../web/artifacts/KisakBlack-web.mjs', import.meta.url), 'utf8'));
+  assert.equal(await glue.text(), await readFile(new URL('../engine/KisakBlack-web.mjs', import.meta.url), 'utf8'));
+  const wasm = await (await fetch('http://127.0.0.1:8617/artifacts/KisakBlack-web.wasm')).arrayBuffer();
+  assert.ok(WebAssembly.Module.imports(new WebAssembly.Module(wasm)).some(({ name }) => name === 'kb_net_send'));
   const kbnet = await fetch('http://127.0.0.1:8617/kbnet.js');
   assert.match(await kbnet.text(), /export\s*\{/);
   assert.equal(kbnet.headers.get('cache-control'), 'public, max-age=0');

@@ -1,15 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
 import { instructions, leb, parse, rebuild, sleb } from './wasm.mjs';
-
-const ROOT = path.join(import.meta.dirname, '..');
-const ARTIFACTS = '/bo1z/artifacts/';
-
-async function override(urlPath, content) {
-  const file = path.join(ROOT, 'overrides', urlPath);
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, content);
-}
 
 const I32 = 0x7f;
 const IMPORTS = [
@@ -148,10 +137,9 @@ function patches(module) {
   return edits;
 }
 
-const original = await readFile(path.join(ROOT, 'engine', 'KisakBlack-web.wasm'));
-const module = parse(new Uint8Array(original));
-const wasm = rebuild(module, { imports: IMPORTS, edits: patches(module) });
-if (!WebAssembly.validate(wasm)) throw new Error('wasm patché invalide');
-await override(`${ARTIFACTS}KisakBlack-web.wasm`, wasm);
-
-console.log(`wasm patché : ${wasm.length} octets, ${IMPORTS.length} imports`);
+export function patchEngine(original) {
+  const module = parse(new Uint8Array(original));
+  const wasm = rebuild(module, { imports: IMPORTS, edits: patches(module) });
+  if (!WebAssembly.validate(wasm)) throw new Error('The patched wasm is invalid');
+  return wasm;
+}
