@@ -169,6 +169,7 @@ async function loadEngine() {
     arguments: horde ? hordeArguments(settings.horde) : [], streams: manifest!.streams ?? [], gate, intro: currentIntro(), introCovering,
     net: { shared: net.shared, forward: net.forward },
     onReady: ready, onQuit: quit, onCrash: crash, onRelock: () => { if (view.screen === 'playing') engine!.lock().catch(() => {}); },
+    onPrimed: net.hostGameLoaded,
     report: (source, message) => telemetry.error(source, message),
   });
   try {

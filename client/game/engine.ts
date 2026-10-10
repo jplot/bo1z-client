@@ -128,7 +128,7 @@ type EngineOptions = {
   canvas: HTMLCanvasElement; size: { width: number; height: number }; base: string; zone: string; opfsRoot: string; packBase: string; programsUrl: string;
   master: number; arguments: string[]; streams: Stream[]; gate: PackGate; intro: Intro | null; introCovering: () => boolean;
   net: { shared: Shared; forward: (packet: Uint8Array<ArrayBuffer>) => void };
-  onReady: () => void; onQuit: () => void; onCrash: (message: string, detail: CrashDetail) => void; onRelock: () => void;
+  onReady: () => void; onQuit: () => void; onCrash: (message: string, detail: CrashDetail) => void; onRelock: () => void; onPrimed: () => void;
   report: (source: string, message: string) => void;
 };
 
@@ -247,6 +247,8 @@ export function createEngine(options: EngineOptions) {
     if (/KISAK_BROWSER engine-initialized/.test(message)) timings.engineInitialized = performance.now();
     if (/KISAK_BROWSER intro-hold/.test(message)) timings.introHeld ??= performance.now();
     if (/KISAK_BROWSER first-present/.test(message)) timings.firstPresent = performance.now();
+    // Printed by a client that received a server's game state (CL_RestartCGame); a local game never prints it.
+    if (message.startsWith('Setting state to CA_PRIMED')) options.onPrimed();
     const zoneLoaded = /Loaded fastfile '([^']+)'/.exec(message);
     if (zoneLoaded) {
       zones.add(zoneLoaded[1]);

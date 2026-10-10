@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, shallowReactive } from 'vue';
+import { computed, onUnmounted, ref, shallowReactive, watchEffect } from 'vue';
 import { BASE, hiddenRoom, horde, map, room } from '../game/pack.ts';
 import { enter, type Failure, retry, view } from '../game/session.ts';
 import { HOST } from '../net/lan.ts';
 import { link, linkPending, role } from '../net/link.ts';
 
 type Problem = { title: string; text: string; hint?: string; primary?: [string, () => void]; report?: boolean };
-type Member = { label: string; pseudo: string; me: boolean; dot: boolean };
 
 const TIPS = [
   'Les zombies vont plus vite à chaque manche : garde une sortie.',
@@ -20,8 +19,13 @@ const LINKS: Record<string, string> = { relay: 'connecté via le relais (un peu 
 const kicker = room ? `Salon${hiddenRoom ? ' privé' : ''} ${room}` : `Partie solo${horde ? ' · Mode Enfer' : ''}`;
 const reload: [string, () => void] = ['Recharger', () => location.reload()];
 
-const ui = shallowReactive({ tip: '', party: [] as Member[], copy: 'Copier le rapport' });
+const ui = shallowReactive({ tip: '', copy: 'Copier le rapport' });
+// Kept once the host leaves, for the message that says so.
 const hostName = ref('l’hôte');
+watchEffect(() => {
+  const pseudo = link.members.find(member => member.label === HOST)?.pseudo;
+  if (pseudo) hostName.value = pseudo;
+});
 const details = ref<HTMLDetailsElement>();
 const pre = ref<HTMLPreElement>();
 
@@ -75,6 +79,7 @@ const problem = computed<Problem | null>(() => {
   return view.screen === 'error' && view.failure ? failureProblem(view.failure) : null;
 });
 const guest = computed(() => role() === 'guest');
+const party = computed(() => link.members.map(({ label, pseudo }) => ({ label, pseudo, me: label === link.label, dot: label === HOST && guest.value })));
 const waiting = computed(() => view.screen === 'playing' && guest.value && !link.joined);
 const gone = computed(() => !problem.value && view.screen === 'playing' && !waiting.value);
 const full = computed(() => view.screen === 'ready' || view.screen === 'playing');
@@ -107,25 +112,7 @@ function click(event: MouseEvent) {
   if (!(event.target as Element).closest('a, button, details')) enter();
 }
 
-let shown = '', polling = 0;
-async function party() {
-  try {
-    const [found] = await (await fetch(`/rooms?code=${encodeURIComponent(room!)}`, { cache: 'no-store' })).json();
-    const members: { label: string; pseudo: string }[] = found?.members ?? [];
-    const next = JSON.stringify([members, link.label]);
-    if (next !== shown) {
-      shown = next;
-      hostName.value = members.find(member => member.label === HOST)?.pseudo || 'l’hôte';
-      ui.party = members.map(({ label, pseudo }) => ({ label, pseudo, me: label === link.label, dot: label === HOST && guest.value }));
-    }
-  } catch {}
-  if (!problem.value && !gone.value) polling = setTimeout(party, 2000);
-}
-if (room) party();
-onUnmounted(() => {
-  clearInterval(tips);
-  clearTimeout(polling);
-});
+onUnmounted(() => clearInterval(tips));
 </script>
 
 <template>
@@ -135,7 +122,7 @@ onUnmounted(() => {
     <div class="kb-box">
       <div class="kb-kicker">{{ kicker }}</div><h2 class="kb-name">{{ map.name }}</h2>
       <div class="kb-party" :hidden="!room">
-        <span v-for="member in ui.party" :key="member.label" :class="member.me ? 'me' : ''" :title="member.label === HOST ? 'Hôte du salon' : undefined"><i v-if="member.dot" :class="`kb-dot ${dot}`" :title="LINKS[dot]"></i>{{ member.pseudo || 'Unknown Soldier' }}</span>
+        <span v-for="member in party" :key="member.label" :class="member.me ? 'me' : ''" :title="member.label === HOST ? 'Hôte du salon' : undefined"><i v-if="member.dot" :class="`kb-dot ${dot}`" :title="LINKS[dot]"></i>{{ member.pseudo || 'Unknown Soldier' }}</span>
       </div>
       <div class="kb-status"><i :class="full ? 'kb-ok' : ''"></i><span>{{ status }}</span><small>{{ eta }}</small></div>
       <div class="kb-timeline">

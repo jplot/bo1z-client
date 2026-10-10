@@ -6,19 +6,19 @@ import { MAILBOX_BYTES, post, push, RING_BYTES, SLOT_DATA, SOCKS } from './ring.
 const RELAY_AFTER = 5000;
 // After 30 s without a link, the guest would be playing alone without knowing it.
 const LINK_TIMEOUT = 30000;
-// On the guest, the engine goes "in game" on its local game, then loads the host's: it is only in once the host's snapshots
-// flow without a break, at least 2 per quarter second for 3 s, or after 2 minutes.
-const JOIN_SAMPLES = 13;
+// After 2 minutes without the host's game, the guest's own game shows rather than an endless wait.
 const JOIN_GIVE_UP = 120000;
 
 type Transport = (packet: Uint8Array<ArrayBuffer>) => boolean;
 type Message =
   | { type: 'welcome'; you: string; iceServers: RTCIceServer[] }
   | { type: 'signal'; from: string; data: { description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit; relay?: 'hello' | 'ack' } }
-  | { type: 'leave'; label: string };
+  | { type: 'leave'; label: string }
+  | { type: 'members'; members: Member[] };
+export type Member = { label: string; pseudo: string };
 export type RoomFailure = 'signal' | 'host-left' | 'unreachable';
 
-export const link = shallowReactive({ label: '', linked: false, relayed: false, joined: false, failure: null as RoomFailure | null });
+export const link = shallowReactive({ label: '', linked: false, relayed: false, joined: false, failure: null as RoomFailure | null, members: [] as Member[] });
 export const traffic = { sent: 0, received: 0, dropped: 0 };
 export let shared: Shared;
 
@@ -158,7 +158,8 @@ function room(name: string, hidden: boolean, map: string): Transport {
       if (description!.type !== 'offer') return;
       await entry.connection.setLocalDescription();
       tell(message.from, { description: entry.connection.localDescription });
-    } else if (message.type === 'leave') {
+    } else if (message.type === 'members') link.members = message.members;
+    else if (message.type === 'leave') {
       if (message.label === HOST) link.failure = 'host-left';
       peers.get(message.label)?.connection.close();
       peers.delete(message.label);
@@ -184,19 +185,6 @@ function room(name: string, hidden: boolean, map: string): Transport {
   };
 }
 
-function watchJoin() {
-  const samples: number[] = [];
-  const started = performance.now();
-  const timer = setInterval(() => {
-    samples.push(traffic.received);
-    if (samples.length > JOIN_SAMPLES) samples.shift();
-    const flowing = samples.length === JOIN_SAMPLES && samples.every((value, k) => k === 0 || value - samples[k - 1] >= 2);
-    if (!flowing && performance.now() - started < JOIN_GIVE_UP) return;
-    link.joined = true;
-    clearInterval(timer);
-  }, 250);
-}
-
 export function start(options: { room: string | null; hidden: boolean; map: string; connect: string | null }) {
   shared = { rings: new SharedArrayBuffer(RING_BYTES), mailbox: new SharedArrayBuffer(MAILBOX_BYTES), multi: new SharedArrayBuffer(4) };
   roomName = options.room;
@@ -214,10 +202,15 @@ export function start(options: { room: string | null; hidden: boolean; map: stri
   }
 }
 
-// The local game is running: name and connect go out once their condition holds, and the guest watches for the host's game.
+// The local game is running: name and connect go out once their condition holds.
 export function enteredGame() {
   if (playing) return;
   playing = true;
-  if (role() === 'guest') watchJoin();
+  if (role() === 'guest') setTimeout(() => { link.joined = true; }, JOIN_GIVE_UP);
   else link.joined = true;
+}
+
+// The guest's engine has the host's game state: the host's world is what it draws now.
+export function hostGameLoaded() {
+  if (playing) link.joined = true;
 }

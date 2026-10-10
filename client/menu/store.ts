@@ -7,8 +7,6 @@ export type Room = { name: string; map: string; private?: boolean; players: numb
 export { HOST } from '../net/lan.ts';
 export const ERA: Record<string, string> = { 'World at War': 'waw', 'Black Ops': 'bo' };
 const HELL_KEY = 'bo1z-horde';
-// Consonants only: no word can form, and no O or I to mistake for 0 and 1.
-const CODE = 'BCDFGHJKLMNPQRSTVWXZ';
 
 export const read = (key: string) => { try { return localStorage.getItem(key); } catch { return null; } };
 export const write = (key: string, value: string) => { try { localStorage.setItem(key, value); } catch {} };
@@ -44,12 +42,9 @@ export async function lookup(code: string): Promise<Room | null> {
   }
 }
 
-// A room's first arrival is its host: a code already taken would join someone else's game, on their map.
 async function createRoom(map: GameMap) {
-  let name;
-  do name = Array.from({ length: 4 }, () => CODE[Math.floor(Math.random() * CODE.length)]).join('');
-  while (await lookup(name));
-  go(map, { room: name, ...(state.hidden && { private: '1' }) });
+  const { code } = await (await fetch('/rooms', { method: 'POST' })).json();
+  go(map, { room: code, ...(state.hidden && { private: '1' }) });
 }
 
 export function pick(map: GameMap) {

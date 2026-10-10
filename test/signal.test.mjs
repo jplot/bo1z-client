@@ -19,13 +19,17 @@ function join(httpPort, room, origin = `http://127.0.0.1:${httpPort}`, map = 'na
   return socket;
 }
 
-test('le salon numérote les pages, achemine leurs messages et annonce les départs', async t => {
+test('le salon numérote les pages, annonce ses joueurs, achemine leurs messages et annonce les départs', async t => {
   const child = await relay(8611, 0);
   t.after(() => child.kill());
-  const host = join(8611, 'soiree');
+  const members = (...players) => ({ type: 'members', members: players.map(([label, pseudo]) => ({ label, pseudo })) });
+  const host = join(8611, 'soiree', undefined, 'nacht', 'Hote');
   assert.deepEqual((await host.next()).you, '10.0.0.1');
-  const guest = join(8611, 'soiree');
+  assert.deepEqual(await host.next(), members(['10.0.0.1', 'Hote']));
+  const guest = join(8611, 'soiree', undefined, 'nacht', 'Invite');
   assert.deepEqual((await guest.next()).you, '10.0.0.2');
+  assert.deepEqual(await guest.next(), members(['10.0.0.1', 'Hote'], ['10.0.0.2', 'Invite']));
+  assert.deepEqual(await host.next(), members(['10.0.0.1', 'Hote'], ['10.0.0.2', 'Invite']));
   assert.deepEqual((await join(8611, 'ailleurs').next()).you, '10.0.0.1');
 
   guest.send(JSON.stringify({ to: '10.0.0.1', data: { description: 'offre' } }));
@@ -33,7 +37,19 @@ test('le salon numérote les pages, achemine leurs messages et annonce les dépa
 
   guest.close();
   assert.deepEqual(await host.next(), { type: 'leave', label: '10.0.0.2' });
+  assert.deepEqual(await host.next(), members(['10.0.0.1', 'Hote']));
   host.close();
+});
+
+test('le serveur attribue les codes de salon : quatre consonnes, tous différents, et seulement à ses propres pages', async t => {
+  const child = await relay(8619, 0);
+  t.after(() => child.kill());
+  const create = origin => fetch('http://127.0.0.1:8619/rooms', { method: 'POST', headers: { origin } });
+  const codes = [];
+  for (let k = 0; k < 200; k++) codes.push((await (await create('http://127.0.0.1:8619')).json()).code);
+  assert.ok(codes.every(code => /^[BCDFGHJKLMNPQRSTVWXZ]{4}$/.test(code)));
+  assert.equal(new Set(codes).size, codes.length);
+  assert.equal((await create('https://example.com')).status, 403);
 });
 
 test('une page d’une autre origine ne peut pas entrer dans un salon', async t => {
