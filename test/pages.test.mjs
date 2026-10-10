@@ -20,10 +20,10 @@ test('le menu et le site sont servis depuis web/ sous /bo1z, le moteur patché d
   const child = await relay(8617, 0);
   t.after(() => child.kill());
   const menu = await fetch('http://127.0.0.1:8617/bo1z?room=soiree');
-  assert.equal(menu.headers.get('content-type'), 'text/html');
+  assert.match(menu.headers.get('content-type'), /^text\/html\b/);
   assert.match(await menu.text(), /<script type="module" src="menu.js">/);
   const play = await fetch('http://127.0.0.1:8617/bo1z/play.js');
-  assert.equal(play.headers.get('content-type'), 'text/javascript');
+  assert.match(play.headers.get('content-type'), /^(text|application)\/javascript\b/);
   assert.equal(await play.text(), await readFile(new URL('../web/play.js', import.meta.url), 'utf8'));
 });
 

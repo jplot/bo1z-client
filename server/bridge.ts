@@ -1,25 +1,27 @@
+import type { WebSocket } from '@fastify/websocket';
 import dgram from 'node:dgram';
 import { networkInterfaces } from 'node:os';
-import { accept, OP_BINARY } from './ws.mjs';
+import type { FastifyInstance } from 'fastify';
+import { keepalive } from './ws.ts';
 
 const lanAddresses = () => Object.values(networkInterfaces()).flat()
-  .filter(({ family, internal }) => family === 'IPv4' && !internal).map(({ address }) => address);
+  .filter(address => address?.family === 'IPv4' && !address.internal).map(address => address!.address);
 
 // Charge UDP : sock émetteur, puis le paquet du moteur ; 0xFFFFFFFF en tête marque une commande hors-bande en texte.
-const describe = payload => (payload.length >= 5 && payload.readInt32LE(1) === -1
+const describe = (payload: Buffer) => (payload.length >= 5 && payload.readInt32LE(1) === -1
   ? JSON.stringify(payload.subarray(5, 85).toString('latin1'))
   : `netchan ${payload.length - 1} octets`);
 const trace = process.env.KBNET_TRACE === '1'
-  ? (arrow, peer, payload) => console.log(`${arrow} ${peer} sock ${payload[0]} ${describe(payload)}`)
+  ? (arrow: string, peer: string, payload: Buffer) => console.log(`${arrow} ${peer} sock ${payload[0]} ${describe(payload)}`)
   : () => {};
 
 // Datagrammes entre page et relais : 4 octets d'IPv4, 2 octets de port big-endian, puis la charge du moteur.
-export function udpBridge(httpPort, udpPort) {
+export function udpBridge(app: FastifyInstance, httpPort: number, udpPort: number) {
   // Les WebSocket échappent à CORS : sans ce filtre, tout site ouvert pourrait émettre de l'UDP via le relais.
   const origins = [`http://127.0.0.1:${httpPort}`, `http://localhost:${httpPort}`];
   const udp = dgram.createSocket('udp4');
-  let page = null;
-  const peers = new Set();
+  let page: WebSocket | null = null;
+  const peers = new Set<string>();
 
   udp.on('message', (payload, from) => {
     const peer = `${from.address}:${from.port}`;
@@ -30,22 +32,24 @@ export function udpBridge(httpPort, udpPort) {
     const header = Buffer.alloc(6);
     from.address.split('.').forEach((byte, i) => { header[i] = Number(byte); });
     header.writeUInt16BE(from.port, 4);
-    page.send(OP_BINARY, Buffer.concat([header, payload]));
+    page.send(Buffer.concat([header, payload]));
   });
   udp.bind(udpPort, () => console.log(`UDP ${udpPort} : ${['127.0.0.1', ...lanAddresses()].map(address => `${address}:${udpPort}`).join(', ')}`));
 
-  let current = null;
-  return (req, socket) => {
-    if (!origins.includes(req.headers.origin)) return socket.destroy();
-    current?.destroy();
-    current = socket;
-    page = accept(req, socket, (opcode, payload) => {
-      if (opcode !== OP_BINARY) return;
-      const [address, port] = [[...payload.subarray(0, 4)].join('.'), payload.readUInt16BE(4)];
-      trace('→', `${address}:${port}`, payload.subarray(6));
-      udp.send(payload.subarray(6), port, address, error => error && console.error('udp', error.message));
-    }, 'kbnet');
+  app.get('/kbnet', {
+    websocket: true,
+    preValidation: async (request, reply) => { if (!origins.includes(request.headers.origin ?? '')) return reply.code(403).send(); },
+  }, socket => {
+    page?.terminate();
+    page = socket;
+    keepalive(socket);
+    socket.on('message', (data: Buffer, binary: boolean) => {
+      if (!binary) return;
+      const [address, port] = [[...data.subarray(0, 4)].join('.'), data.readUInt16BE(4)];
+      trace('→', `${address}:${port}`, data.subarray(6));
+      udp.send(data.subarray(6), port, address, error => error && console.error('udp', error.message));
+    });
     console.log('page connectée au pont');
-    socket.on('close', () => { if (current === socket) page = current = null; });
-  };
+    socket.on('close', () => { if (page === socket) page = null; });
+  });
 }

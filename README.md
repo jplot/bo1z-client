@@ -4,7 +4,7 @@ Black Ops Zombies dans le navigateur, à plusieurs. Le point de départ est le p
 
 ## Organisation
 
-- `server/` (Fastify, TypeScript exécuté tel quel par Node) et `lib/` : le relais (site, salons, pont UDP, cache des données du jeu).
+- `server/` (Fastify, TypeScript exécuté tel quel par Node) : le relais (site, salons, pont UDP, cache des données du jeu).
 - `web/` : le site, servi sous `/bo1z` et modifié directement. Le menu (`index.html`, `menu.js`, `menu.css`), la liste de nos cartes (`catalog.mjs`), le gabarit des pages de carte (`map.html`) et leur écran de chargement (`loading.js`, `loading.css`), le réseau (`kbnet.js`, `ring.js`), et le reste du site repris de vel.gg (`play.js`, `engine.js`, `artifacts/KisakBlack-web.mjs`…).
 - `engine/KisakBlack-web.wasm` : le moteur compilé par vel.gg à partir de KisakBlack (C++, GPL-3.0). Seul fichier qu'on ne peut modifier qu'en le patchant.
 - `patch/` : les patchs du wasm et le réécrivain qui les applique.
@@ -56,7 +56,7 @@ git lfs install --local
 git worktree add cache assets
 ```
 
-Le relais sert alors tout depuis le disque, pages de salon et reprises par plage comprises. `node prefetch.mjs` vérifie chaque fichier du jeu contre le SHA-256 du manifeste de vel.gg et retélécharge ce qui manquerait.
+Le relais sert alors tout depuis le disque, pages de salon et reprises par plage comprises. `node prefetch.ts` vérifie chaque fichier du jeu contre le SHA-256 du manifeste de vel.gg et retélécharge ce qui manquerait.
 
 GitHub refuse un envoi de plus de 2 Go : la branche se pousse commit par commit (un par carte).
 

@@ -10,7 +10,12 @@
     "verbatimModuleSyntax": true,
     "allowJs": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["server"]
+  "include": [
+    "server",
+    "prefetch.ts"
+  ]
 }
