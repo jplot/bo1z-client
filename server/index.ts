@@ -3,6 +3,7 @@ import fastifyWebsocket from '@fastify/websocket';
 import { createReadStream } from 'node:fs';
 import { appendFile, mkdir } from 'node:fs/promises';
 import type { OutgoingHttpHeaders } from 'node:http';
+import { BlockList, isIPv6 } from 'node:net';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
@@ -44,11 +45,14 @@ app.setErrorHandler((error: Error, request, reply) => {
 
 // telemetry.js n'envoie rien tant que sa sonde GET ne reçoit pas { enabled: true } : seule une page ouverte sur ce poste l'obtient.
 // Sur Heroku, l'interlocuteur est toujours le routeur : chaque joueur y écrivait ses relevés sur le disque du serveur.
-const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+const LOOPBACK = new BlockList();
+LOOPBACK.addSubnet('127.0.0.0', 8, 'ipv4');
+LOOPBACK.addAddress('::1', 'ipv6');
 app.route({
   method: ['GET', 'POST'], url: '/bo1z/telemetry',
   handler: async (request, reply) => {
-    const local = LOOPBACK.has(request.socket.remoteAddress ?? '');
+    const address = request.socket.remoteAddress ?? '';
+    const local = LOOPBACK.check(address, isIPv6(address) ? 'ipv6' : 'ipv4');
     if (request.method === 'GET') return reply.send({ enabled: local, build: 'bo1z-lan' });
     if (!local) return reply.code(403).send();
     await mkdir(TELEMETRY, { recursive: true });
