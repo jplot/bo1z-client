@@ -170,7 +170,7 @@ render();
 let shown = '', polling = 0;
 async function party() {
   try {
-    const room = (await (await fetch('/rooms', { cache: 'no-store' })).json()).find((entry: { name: string }) => entry.name === roomName);
+    const [room] = await (await fetch(`/rooms?code=${encodeURIComponent(roomName!)}`, { cache: 'no-store' })).json();
     const members: { label: string; pseudo: string }[] = room?.members ?? [];
     const next = JSON.stringify([members, kbnet()?.label]);
     if (next !== shown) {

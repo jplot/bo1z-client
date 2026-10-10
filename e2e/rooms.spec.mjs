@@ -11,7 +11,7 @@ test('deux joueurs : l’invité entre dans la partie de l’hôte en liaison di
   await expect(guest.locator('.kb-error-title')).toHaveText('L’hôte a quitté la partie', { timeout: 20_000 });
 });
 
-test('salon privé : absent de la liste, rejoint par son code depuis le menu', async ({ player, guest }) => {
+test('salon privé : absent de la liste, rejoint par son code depuis le menu, ses joueurs en badges au chargement', async ({ player, guest }) => {
   await enter(player, '/kino?room=MZTR&private=1');
   await guest.goto(`${BASE}/`);
   await guest.click('#tab-multi');
@@ -23,4 +23,5 @@ test('salon privé : absent de la liste, rejoint par son code depuis le menu', a
   await play(guest);
   await loadingGone(guest);
   expect(await guest.evaluate(() => ({ label: kbnet.label, linked: kbnet.linked }))).toEqual({ label: '10.0.0.2', linked: true });
+  await expect(guest.locator('.kb-party span')).toHaveCount(2);
 });
