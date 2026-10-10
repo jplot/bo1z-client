@@ -17,10 +17,10 @@ export const test = base.extend({
 });
 
 export async function play(page) {
-  await page.waitForFunction(() => globalThis.five?.screen === 'ready', null, { timeout: 150_000 });
+  await page.waitForFunction(() => globalThis.bo1z?.view.screen === 'ready', null, { timeout: 150_000 });
   await page.bringToFront();
-  await page.click('#play');
-  await page.waitForFunction(() => globalThis.five.screen === 'playing' && document.pointerLockElement, null, { timeout: 30_000 });
+  await page.click('.kb-prompt');
+  await page.waitForFunction(() => bo1z.view.screen === 'playing' && document.pointerLockElement, null, { timeout: 30_000 });
 }
 
 export async function enter(page, path) {
@@ -31,9 +31,9 @@ export async function enter(page, path) {
 export const loadingGone = page => page.waitForFunction(() => document.querySelector('.kb-loading').classList.contains('kb-gone'), null, { timeout: 60_000 });
 
 export async function paused(page) {
-  const from = await page.evaluate(() => five.console.length);
-  await page.evaluate(() => kbnet.command('cl_paused'));
-  const line = await page.waitForFunction(from => five.console.slice(from).map(row => row.message).find(message => /"cl_paused"/.test(message)), from);
+  const from = await page.evaluate(() => bo1z.diagnostics.console.length);
+  await page.evaluate(() => bo1z.net.command('cl_paused'));
+  const line = await page.waitForFunction(from => bo1z.diagnostics.console.slice(from).map(row => row.message).find(message => /"cl_paused"/.test(message)), from);
   return /"cl_paused" is: "(\d)/.exec(await line.jsonValue())?.[1];
 }
 

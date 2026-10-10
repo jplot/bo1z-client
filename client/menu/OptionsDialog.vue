@@ -1,26 +1,16 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { hordeCount, hordeDefaults, hordeRound } from '../../web/horde.js';
-import { flag, read, write } from './store.ts';
+import { hordeCount, hordeRound } from '../game/horde.ts';
+import { loadSettings, saveSettings as save } from '../game/settings.ts';
+import { flag } from './store.ts';
 
-const SETTINGS_KEY = 'bo1z-settings';
-function load() {
-  try {
-    return JSON.parse(read(SETTINGS_KEY)!) ?? {};
-  } catch {
-    return {};
-  }
-}
-// play.js relit cet objet au chargement de la carte ; il n'applique un volume enregistré que si volumeChosen est vrai.
-const save = (change: object) => write(SETTINGS_KEY, JSON.stringify({ ...load(), ...change }));
-
-const saved = load();
+const saved = loadSettings();
 const dialog = ref<HTMLDialogElement>();
-const sensitivity = ref(Number.isFinite(saved.sensitivity) ? saved.sensitivity : 5);
-const volume = ref(saved.volumeChosen === true && Number.isFinite(saved.volume) ? saved.volume : 0.5);
-const fullscreen = ref(saved.fullscreen === true);
-const count = ref(hordeCount(saved.horde?.n ?? hordeDefaults.n));
-const round = ref(hordeRound(saved.horde?.round ?? hordeDefaults.round));
+const sensitivity = ref(saved.sensitivity);
+const volume = ref(saved.volume);
+const fullscreen = ref(saved.fullscreen);
+const count = ref(saved.horde.n);
+const round = ref(saved.horde.round);
 
 function setSensitivity(value: string) { sensitivity.value = Number(value); save({ sensitivity: sensitivity.value }); }
 function setVolume(value: string) { volume.value = Number(value); save({ volume: volume.value, volumeChosen: true }); }

@@ -5,8 +5,8 @@ Black Ops Zombies dans le navigateur, à plusieurs. Le point de départ est le p
 ## Organisation
 
 - `server/` (Fastify, TypeScript exécuté tel quel par Node) : le relais (site, salons, pont UDP, cache des données du jeu).
-- `client/` : notre code du site en TypeScript, compilé par Vite : le menu (`index.html`, `menu/`) et l'écran de chargement (`loading.ts`, `loading/`) en Vue, la liste de nos cartes (`catalog.ts`, partagée avec le serveur), le réseau (`kbnet.ts`, `ring.ts`) et l'encart de performance (`perf-overlay.ts`).
-- `web/` : le reste du site, copié tel quel par Vite. Le gabarit des pages de carte (`map.html`), le style de leur écran de chargement (`loading.css`), et le site repris de vel.gg (`play.js`, `engine.js`, `artifacts/KisakBlack-web.mjs`…).
+- `client/` : le site en TypeScript, compilé par Vite. Le menu (`index.html`, `menu/`) et la page de carte (`map.html`, `map/` : écran de chargement, reprise de la souris, encart F3) en Vue ; la partie (`game/` : déroulé, pont avec le moteur, entrées, son, télémétrie), qui expose son état à l'interface ; le réseau (`net/`) ; la liste de nos cartes (`catalog.ts`, partagée avec le serveur).
+- `web/` : copié tel quel par Vite : le téléchargeur et ses workers, et la colle générée du moteur (`artifacts/KisakBlack-web.mjs`), modifiée à la main là où la page s'y branche.
 - `dist/` : le site compilé que sert le relais (`npm run build`).
 - `engine/KisakBlack-web.wasm` : le moteur compilé par vel.gg à partir de KisakBlack (C++, GPL-3.0). Seul fichier qu'on ne peut modifier qu'en le patchant.
 - `patch/` : les patchs du wasm et le réécrivain qui les applique.
@@ -48,7 +48,7 @@ Sans passer par le menu, tous les joueurs ouvrent la même adresse avec `?room=<
 - Chaque joueur lance son relais et ouvre la carte sur son propre `127.0.0.1`.
 - L'hôte joue normalement. Les autres ajoutent `?connect=<ip de l'hôte>` à l'URL de la carte, par exemple `http://127.0.0.1:8484/nacht?connect=192.168.1.20` : la carte se charge d'abord en local, puis la page envoie `connect` dès que la partie démarre.
 - Sur un seul Mac, le second joueur lance `PORT=8485 NET_PORT=3075 node server/index.ts` et ouvre `http://127.0.0.1:8485/nacht?connect=127.0.0.1:3074`.
-- `kbnet` dans la console de la page donne les paquets envoyés, reçus et perdus ; `kbnet.command('connect 192.168.1.20')` envoie une commande à la console du jeu.
+- `bo1z.net.traffic` dans la console de la page donne les paquets envoyés, reçus et perdus ; `bo1z.net.command('connect 192.168.1.20')` envoie une commande à la console du jeu.
 
 ## Jouer sans vel.gg
 

@@ -2,24 +2,24 @@ import vue from '@vitejs/plugin-vue';
 import path from 'node:path';
 import { defineConfig } from 'vite';
 
-// Nos modules (client/) sortent sous leur nom, exports gardés : la colle importe ../kbnet.js, play.js ./perf-overlay.js, map.html loading.js.
-// Le reste du site (web/) est copié tel quel : le code de vel.gg tire ses adresses de l'emplacement de son propre fichier.
+const client = (file: string) => path.resolve(import.meta.dirname, 'client', file);
+
+// The engine glue, served outside the bundle, imports ../kbnet.js from artifacts/: this entry keeps that name and its exports.
+// The rest of web/ is copied as is.
 export default defineConfig({
   root: 'client',
   plugins: [vue()],
   base: './',
   publicDir: path.resolve(import.meta.dirname, 'web'),
+  worker: { format: 'es' },
   build: {
     outDir: path.resolve(import.meta.dirname, 'dist'),
     emptyOutDir: true,
     target: 'es2024',
     rolldownOptions: {
-      input: {
-        index: path.resolve(import.meta.dirname, 'client/index.html'),
-        ...Object.fromEntries(['kbnet', 'perf-overlay', 'loading'].map(name => [name, path.resolve(import.meta.dirname, `client/${name}.ts`)])),
-      },
+      input: { index: client('index.html'), map: client('map.html'), kbnet: client('net/engine.ts') },
       preserveEntrySignatures: 'exports-only',
-      output: { entryFileNames: '[name].js', chunkFileNames: '[name]-[hash].js' },
+      output: { entryFileNames: chunk => (chunk.name === 'kbnet' ? 'kbnet.js' : 'assets/[name]-[hash].js') },
     },
   },
 });

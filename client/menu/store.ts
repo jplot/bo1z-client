@@ -4,7 +4,7 @@ import { MAPS, type GameMap } from '../catalog.ts';
 export type { GameMap };
 export type Room = { name: string; map: string; private?: boolean; players: number; members: { label: string; pseudo: string }[] };
 
-export const HOST = '10.0.0.1';
+export { HOST } from '../net/lan.ts';
 export const ERA: Record<string, string> = { 'World at War': 'waw', 'Black Ops': 'bo' };
 const HELL_KEY = 'bo1z-horde';
 // Que des consonnes : aucun mot ne peut se former, et pas de O ni de I à confondre avec 0 et 1.

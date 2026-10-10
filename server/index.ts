@@ -103,6 +103,8 @@ app.setNotFoundHandler(async (request, reply) => {
   if (!url.pathname.startsWith(PREFIX)) return reply.code(404).send();
   const site = url.pathname.slice(PREFIX.length - 1);
   const page = await mapPage(site);
+  // Its URLs are relative to the site directory: under /<map>/, they would point at /<map>/assets/.
+  if (page && site.endsWith('/')) return reply.redirect(`${PREFIX}${site.slice(1, -1)}${url.search}`, 302);
   if (page) return serve(request, reply, 200, { 'content-type': 'text/html', 'content-length': Buffer.byteLength(page) }, Readable.from([page]));
   // Chez vel.gg, et donc dans cache/, tout vit sous /bo1z/.
   const remote = new URL(`/bo1z${site}${url.search}`, 'http://127.0.0.1');
