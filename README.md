@@ -7,6 +7,7 @@ Call of Duty: Black Ops zombies in the browser, solo or with up to four players.
 - `server/`: a Fastify relay, TypeScript run as is by Node. It serves the site, introduces players to each other for lobbies, bridges the engine's UDP traffic, and serves the game data from `cache/` or from vel.gg.
 - `client/`: the site, built by Vite into `dist/`. A single page opens the menu (`menu/`) or a map (`map/`) depending on the address, both in Vue. `game/` runs a game session and talks to the engine, `download/` stores the map files in the browser (OPFS), `net/` carries the engine's packets between players, `i18n/` holds the English and French texts, `catalog.ts` lists the maps.
 - `engine/`: the engine, KisakBlack (C++, GPL-3.0) compiled to WebAssembly by vel.gg, and its generated JavaScript glue, edited by hand where the page hooks into it.
+  Its native code reads in [SwagSoftware/KisakBlack](https://github.com/SwagSoftware/KisakBlack) and, for the zombies, single-player and mod parts, [MisaDev4/bo1-zombies-decompiled](https://github.com/MisaDev4/bo1-zombies-decompiled). vel.gg's web layer (`websys`, `webd3d`, `websound`) is not published.
 - `patch/`: the patches applied to the wasm at build time (networking through the page, no pause for a multiplayer host, crash guards), and the rewriter that applies them.
 
 ## Requirements
