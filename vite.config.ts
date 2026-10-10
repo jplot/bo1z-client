@@ -1,3 +1,4 @@
+import i18n from '@intlify/unplugin-vue-i18n/vite';
 import vue from '@vitejs/plugin-vue';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -19,12 +20,13 @@ const artifacts: Plugin = {
 // The glue imports ../kbnet.js from artifacts/: this entry keeps that name and its exports.
 export default defineConfig({
   root: 'client',
-  plugins: [vue(), artifacts],
+  // Translations compiled at build time, so the site ships without vue-i18n's message compiler.
+  plugins: [vue(), i18n({ include: client('i18n/{en,fr}.ts'), fullInstall: false, dropMessageCompiler: true }), artifacts],
   base: './',
   publicDir: false,
   worker: { format: 'es' },
-  // vue-i18n: Composition API only, without its <i18n-t> component and v-t directive (unused) or devtools in production.
-  define: { __VUE_I18N_LEGACY_API__: false, __VUE_I18N_FULL_INSTALL__: false, __INTLIFY_PROD_DEVTOOLS__: false },
+  // The i18n plugin sets vue-i18n's other build flags, but this one only for webpack.
+  define: { __INTLIFY_PROD_DEVTOOLS__: false },
   build: {
     outDir: path.resolve(import.meta.dirname, 'dist'),
     emptyOutDir: true,
