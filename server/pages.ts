@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { MAPS } from '../web/catalog.mjs';
+import { MAPS } from '../client/catalog.ts';
 
 const TEMPLATE = path.join(import.meta.dirname, '..', 'dist', 'map.html');
 

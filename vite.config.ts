@@ -2,7 +2,7 @@ import vue from '@vitejs/plugin-vue';
 import path from 'node:path';
 import { defineConfig } from 'vite';
 
-// Nos modules (client/) sortent sous leur nom, exports gardés : la colle du moteur importe ../kbnet.js, play.js ./perf-overlay.js.
+// Nos modules (client/) sortent sous leur nom, exports gardés : la colle importe ../kbnet.js, play.js ./perf-overlay.js, map.html loading.js.
 // Le reste du site (web/) est copié tel quel : le code de vel.gg tire ses adresses de l'emplacement de son propre fichier.
 export default defineConfig({
   root: 'client',
@@ -16,7 +16,7 @@ export default defineConfig({
     rolldownOptions: {
       input: {
         index: path.resolve(import.meta.dirname, 'client/index.html'),
-        ...Object.fromEntries(['kbnet', 'perf-overlay'].map(name => [name, path.resolve(import.meta.dirname, `client/${name}.ts`)])),
+        ...Object.fromEntries(['kbnet', 'perf-overlay', 'loading'].map(name => [name, path.resolve(import.meta.dirname, `client/${name}.ts`)])),
       },
       preserveEntrySignatures: 'exports-only',
       output: { entryFileNames: '[name].js', chunkFileNames: '[name]-[hash].js' },

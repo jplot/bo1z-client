@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { MAPS } from '../../web/catalog.mjs';
+import { MAPS } from '../catalog.ts';
 import { ERA, hover, off, panel, pick, select, state, unhover, type GameMap } from './store.ts';
 
 const eras = Object.keys(ERA);

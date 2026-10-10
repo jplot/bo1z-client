@@ -13,4 +13,5 @@ declare global {
   var five: Record<string, any> | undefined;
   var __perfOverlay: { box: HTMLElement; update: () => void; setMode: (mode: string) => void; readonly mode: string; stop: () => void } | undefined;
   var __perfStats: unknown;
+  var __kisakLandingPick: boolean | undefined;
 }

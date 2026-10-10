@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue';
-import { MAPS } from '../../web/catalog.mjs';
+import { MAPS } from '../catalog.ts';
 import { art, state, type GameMap } from './store.ts';
 
 const layers = ref<(GameMap | null)[]>([null, null]);

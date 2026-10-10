@@ -5,7 +5,7 @@ import path from 'node:path';
 import { buffer } from 'node:stream/consumers';
 import { brotliDecompressSync } from 'node:zlib';
 import { CHUNK, cachePath, cached, cachedBytes, upstream } from './server/cache.ts';
-import { MAPS } from './web/catalog.mjs';
+import { MAPS } from './client/catalog.ts';
 
 const HEADERS = { 'user-agent': 'Mozilla/5.0 (bo1z-lan build)', 'accept-encoding': 'br, gzip, zstd' };
 const PARALLEL = 4;

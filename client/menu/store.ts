@@ -1,7 +1,7 @@
 import { shallowReactive } from 'vue';
-import { MAPS } from '../../web/catalog.mjs';
+import { MAPS, type GameMap } from '../catalog.ts';
 
-export type GameMap = (typeof MAPS)[number];
+export type { GameMap };
 export type Room = { name: string; map: string; private?: boolean; players: number; members: { label: string; pseudo: string }[] };
 
 export const HOST = '10.0.0.1';

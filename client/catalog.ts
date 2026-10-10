@@ -1,6 +1,8 @@
 // size : Go téléchargés depuis vel.gg au premier lancement (morceaux Brotli des manifestes du 2026-10-09).
 // first : Five garde les adresses racine du site (/manifest.json, /pack/, soit /bo1z/… chez vel.gg).
-export const MAPS = [
+export type GameMap = { era: string; slug: string; zone: string; name: string; place: string; size: number; horde?: boolean; first?: boolean; desc: string };
+
+export const MAPS: GameMap[] = [
   { era: 'World at War', slug: 'nacht', zone: 'zombie_cod5_prototype', name: 'Nacht der Untoten', place: 'Un bunker abandonné', size: 0.28, horde: true,
     desc: 'L’originale : tenir dans un petit bunker face à des vagues sans fin.' },
   { era: 'World at War', slug: 'verruckt', zone: 'zombie_cod5_asylum', name: 'Verrückt', place: 'Asile de Wittenau, Berlin', size: 0.31, horde: true,
