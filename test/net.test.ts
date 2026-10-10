@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import test from 'node:test';
-import { relay } from './relay.mjs';
+import { relay, socketFrom } from './relay.ts';
 
-function page(httpPort, origin = `http://127.0.0.1:${httpPort}`) {
-  const socket = new WebSocket(`ws://127.0.0.1:${httpPort}/kbnet`, { headers: { origin } });
+function page(httpPort: number, origin = `http://127.0.0.1:${httpPort}`) {
+  const socket = socketFrom(`ws://127.0.0.1:${httpPort}/kbnet`, origin);
   socket.binaryType = 'arraybuffer';
   return socket;
 }
 
-function datagram(port, text) {
+function datagram(port: number, text: string) {
   const bytes = Buffer.alloc(6 + text.length);
   bytes.set([127, 0, 0, 1]);
   bytes.writeUInt16BE(port, 4);
@@ -17,8 +17,8 @@ function datagram(port, text) {
   return bytes;
 }
 
-async function received(socket) {
-  const [{ data }] = await once(socket, 'message');
+async function received(socket: WebSocket) {
+  const [{ data }] = await once(socket, 'message') as [MessageEvent<ArrayBuffer>];
   const bytes = Buffer.from(data);
   return { from: `${[...bytes.subarray(0, 4)].join('.')}:${bytes.readUInt16BE(4)}`, text: bytes.subarray(6).toString() };
 }
@@ -43,6 +43,6 @@ test('une page d’une autre origine ne peut pas ouvrir le pont', async t => {
   const child = await relay(8603, 29603);
   t.after(() => child.kill());
   const socket = page(8603, 'https://example.com');
-  const [event] = await Promise.race([once(socket, 'error'), once(socket, 'open')]);
+  const [event] = await Promise.race([once(socket, 'error'), once(socket, 'open')]) as [Event];
   assert.equal(event.type, 'error');
 });

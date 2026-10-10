@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import type { ChildProcess } from 'node:child_process';
 import test, { after, before } from 'node:test';
-import { relay } from './relay.mjs';
+import { relay } from './relay.ts';
 
 const DIR = path.join(new URL('..', import.meta.url).pathname, 'cache', 'bo1z', 'kbnet-test');
 const URL_PATH = 'http://127.0.0.1:8615/kbnet-test/whole.iwd';
 const TAIL = Buffer.alloc(1_000, 3);
-let child;
+let child: ChildProcess;
 
 before(async () => {
   await mkdir(path.join(DIR, 'page'), { recursive: true });

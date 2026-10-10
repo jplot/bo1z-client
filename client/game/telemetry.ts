@@ -79,7 +79,8 @@ export function startTelemetry(base: string, context: Context) {
   let enabled: boolean | null = null, build: string | null = null, pending: [object, boolean][] | null = [];
   const session = crypto.randomUUID();
   const totals = { frames: 0, over33: 0, over50: 0, lost: 0, histogram: BUCKETS.map(() => 0), worst: [] as { ms: number | null; atMs: number }[], records: 0 };
-  let crashSent = 0, errorsSent = 0, hiddenCount = 0, lastMemory: object | null = null, ended = false, timer = 0, crashTimer = 0;
+  let crashSent = 0, errorsSent = 0, hiddenCount = 0, lastMemory: object | null = null, ended = false;
+  let timer: ReturnType<typeof setInterval> | undefined, crashTimer: ReturnType<typeof setTimeout> | undefined;
   let reader: (() => Frames | null) | null = null, flushCrash: (() => void) | null = null;
 
   function post(body: object, final: boolean) {
@@ -178,7 +179,7 @@ export function startTelemetry(base: string, context: Context) {
       flushCrash = () => {
         if (!crashTimer) return;
         clearTimeout(crashTimer);
-        crashTimer = 0;
+        crashTimer = undefined;
         let frames = null;
         try {
           frames = drainFrames();

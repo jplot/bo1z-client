@@ -1,13 +1,14 @@
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
+import { socketFrom } from '../test/relay.ts';
 
-const sockets = [];
+const sockets: WebSocket[] = [];
 test.afterEach(() => { for (const socket of sockets.splice(0)) socket.close(); });
-async function room(name, map, player, extra = '') {
-  const socket = new WebSocket(`ws://127.0.0.1:8630/signal?room=${name}&map=${map}&player=${player}${extra}`, { headers: { origin: 'http://127.0.0.1:8630' } });
+async function room(name: string, map: string, player: string, extra = '') {
+  const socket = socketFrom(`ws://127.0.0.1:8630/signal?room=${name}&map=${map}&player=${player}${extra}`, 'http://127.0.0.1:8630');
   await new Promise(resolve => { socket.onmessage = resolve; });
   sockets.push(socket);
 }
-const blankMapPages = page => page.route(/\/[a-z]+\?room=/, route => route.fulfill({ contentType: 'text/html', body: '' }));
+const blankMapPages = (page: Page) => page.route(/\/[a-z]+\?room=/, route => route.fulfill({ contentType: 'text/html', body: '' }));
 
 test('Solo : les dix cartes, le Mode Enfer grise les quatre sans mode horde, la vue liste', async ({ page }) => {
   await page.goto('/');
@@ -63,5 +64,5 @@ test('Options : la sensibilité réglée est gardée pour les pages de carte', a
   await page.goto('/');
   await page.click('#open-options');
   await page.locator('#o-sens').fill('2.5');
-  expect(JSON.parse(await page.evaluate(() => localStorage.getItem('bo1z-settings'))).sensitivity).toBe(2.5);
+  expect(JSON.parse((await page.evaluate(() => localStorage.getItem('bo1z-settings')))!).sensitivity).toBe(2.5);
 });

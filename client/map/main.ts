@@ -9,5 +9,7 @@ import './map.css';
 if (horde) document.title += ' · Mode Enfer';
 createApp(MapScreen).mount('#screen');
 // Handle for tests and the browser console; no module reads it.
-Object.assign(globalThis, { bo1z: { view, diagnostics, net, engine: currentEngine } });
+const handle = { view, diagnostics, net, engine: currentEngine };
+export type Handle = typeof handle;
+Object.assign(globalThis, { bo1z: handle });
 startSession();

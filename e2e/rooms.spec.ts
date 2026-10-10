@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { BASE, enter, loadingGone, play, test } from './fixtures.mjs';
+import { BASE, enter, loadingGone, play, test } from './fixtures.ts';
 
 test('deux joueurs : l’invité entre dans la partie de l’hôte en liaison directe, puis apprend son départ', async ({ player, guest }) => {
   await enter(player, '/nacht?room=QZRT');

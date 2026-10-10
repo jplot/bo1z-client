@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import { enter, paused, running, test } from './fixtures.mjs';
+import { enter, paused, running, test } from './fixtures.ts';
 
 test('Échap met une partie solo en pause', async ({ player }) => {
   await enter(player, '/nacht');

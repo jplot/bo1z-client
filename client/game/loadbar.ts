@@ -8,7 +8,7 @@ const REF_RATE = 90e6 / 8;
 const ENGINE_KEY = 'bo1z-engine';
 
 type Progress = { pct: number; eta: number | null; engine: number };
-type Run = { t0: number; shown: number; eta: number | null; last: number; timer: number; wd: number; rates: [number, number][];
+type Run = { t0: number; shown: number; eta: number | null; last: number; timer?: ReturnType<typeof setInterval>; wd: number; rates: [number, number][];
   dl: { c0: number; completed: number; total: number; t: number } | null };
 
 // This machine's engine time for the map, kept from its last load that had every file at callMain
@@ -103,7 +103,7 @@ export function createLoadbar(slug: string, defaultSeconds: number, zones: Map<s
     start() {
       if (run) return;
       const now = performance.now();
-      run = { t0: now, shown: 0, eta: null, last: now, timer: 0, wd: 0, rates: [], dl: null };
+      run = { t0: now, shown: 0, eta: null, last: now, wd: 0, rates: [], dl: null };
       tick();
       run.timer = setInterval(tick, 250);
     },

@@ -136,7 +136,7 @@ export function createEngine(options: EngineOptions) {
   const { canvas, zone } = options;
   const control = new SharedArrayBuffer(16), counters = new Int32Array(control);
   let module: KisakModule | null = null, context: AudioContext | null = null, node: AudioWorkletNode | null = null, mixer: Mixer | null = null;
-  let pointer = 0, pump = 0, pausedDrainAt = performance.now(), running = false, configured = false, generation = 0;
+  let pump: ReturnType<typeof setInterval> | undefined, pointer = 0, pausedDrainAt = performance.now(), running = false, configured = false, generation = 0;
   let starting: Promise<unknown> | null = null, stopped = false, quitting = false;
   let mouseX = 0, mouseY = 0, master = options.master, introWanted = false, introReleased = false, startupConsoleLines: number | null = null;
   let channel: BroadcastChannel | null = null;
@@ -159,7 +159,7 @@ export function createEngine(options: EngineOptions) {
   // without a start line on the pipeline route, we wait 10 s for one.
   const WARM_HOLD_MS = 45000, WARM_START_MS = 10000;
   const warm = diagnostics.warm;
-  let warmTimer = 0, readyFired = false;
+  let warmTimer: ReturnType<typeof setInterval> | undefined, readyFired = false;
   function warmLog(message: string) {
     const start = /^WEB_GPU_WARM map=(\S+) seed=(\S+)(?: session=(\S+))? rows=(\d+)/.exec(message);
     if (start && !warm.started) {
@@ -199,7 +199,7 @@ export function createEngine(options: EngineOptions) {
     if (!reason) {
       diagnostics.warmHolding = true;
       diagnostics.warmHoldUntil = mapLoaded + WARM_HOLD_MS;
-      warmTimer ||= setInterval(warmGate, 250);
+      warmTimer ??= setInterval(warmGate, 250);
       return;
     }
     clearInterval(warmTimer);
