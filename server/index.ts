@@ -43,8 +43,10 @@ app.setErrorHandler((error: Error, request, reply) => {
   return reply.code(502).send();
 });
 
-// telemetry.js n'envoie rien tant que sa sonde GET ne reçoit pas { enabled: true } : seule une page ouverte sur ce poste l'obtient.
+// telemetry.js n'envoie rien tant que sa sonde GET ne reçoit pas { enabled: true } : seule une page ouverte sur ce poste l'obtient,
+// ou toute page avec TELEMETRY=1 (relais lancé chez soi pour les joueurs du réseau local ; le Procfile ne le pose pas).
 // Sur Heroku, l'interlocuteur est toujours le routeur : chaque joueur y écrivait ses relevés sur le disque du serveur.
+const TELEMETRY_ALL = process.env.TELEMETRY === '1';
 const LOOPBACK = new BlockList();
 LOOPBACK.addSubnet('127.0.0.0', 8, 'ipv4');
 LOOPBACK.addAddress('::1', 'ipv6');
@@ -52,7 +54,7 @@ app.route({
   method: ['GET', 'POST'], url: '/bo1z/telemetry',
   handler: async (request, reply) => {
     const address = request.socket.remoteAddress ?? '';
-    const local = LOOPBACK.check(address, isIPv6(address) ? 'ipv6' : 'ipv4');
+    const local = TELEMETRY_ALL || LOOPBACK.check(address, isIPv6(address) ? 'ipv6' : 'ipv4');
     if (request.method === 'GET') return reply.send({ enabled: local, build: 'bo1z-lan' });
     if (!local) return reply.code(403).send();
     await mkdir(TELEMETRY, { recursive: true });

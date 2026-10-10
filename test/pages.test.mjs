@@ -36,3 +36,11 @@ test('la télémétrie ne s’ouvre qu’aux pages de ce poste, pas à celles ve
   assert.equal((await (await fetch(`http://${lan}:8619/bo1z/telemetry`)).json()).enabled, false);
   assert.equal((await fetch(`http://${lan}:8619/bo1z/telemetry`, { method: 'POST', body: '{}' })).status, 403);
 });
+
+test('avec TELEMETRY=1, la télémétrie s’ouvre aussi aux pages des autres machines du réseau', async t => {
+  const lan = Object.values(networkInterfaces()).flat().find(address => address.family === 'IPv4' && !address.internal)?.address;
+  if (!lan) return t.skip('aucune adresse réseau hors de la boucle locale');
+  const child = await relay(8620, 0, { HOST: '0.0.0.0', TELEMETRY: '1' });
+  t.after(() => child.kill());
+  assert.equal((await (await fetch(`http://${lan}:8620/bo1z/telemetry`)).json()).enabled, true);
+});

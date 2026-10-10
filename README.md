@@ -21,7 +21,7 @@ Puis ouvrir http://127.0.0.1:8484/bo1z dans Chrome.
 
 - Le relais sert d'abord `overrides/` (le moteur patché), puis `web/`, puis les pages de carte rendues depuis `web/map.html`, et enfin les données du jeu depuis `cache/`.
 - `cache/` garde les données du jeu en clair, rangées comme sur vel.gg, sans jamais les rafraîchir ; le relais y découpe à la volée les morceaux `?part=k` que demande le jeu. Ce qui manque est téléchargé chez vel.gg.
-- La télémétrie du site reste sur ce poste : chaque envoi (plantage avec les 300 dernières lignes de la console du moteur, erreurs, fin de session) est ajouté à `telemetry/<PORT>.jsonl`.
+- La télémétrie du site reste sur ce poste : seules les pages ouvertes sur cette machine l'envoient, ou toutes avec `TELEMETRY=1` (pour les joueurs du réseau local ; Heroku ne la pose pas). Chaque envoi (plantage avec les 300 dernières lignes de la console du moteur, erreurs, fin de session) est ajouté à `telemetry/<PORT>.jsonl`.
 - `ws://127.0.0.1:<PORT>/kbnet` relie la page au port UDP `NET_PORT` (3074 par défaut, le port que le jeu prend quand `connect` n'en précise pas), ouvert sur le réseau local : le relais affiche au démarrage les adresses à donner aux autres joueurs.
 
 ## Patcher le moteur
