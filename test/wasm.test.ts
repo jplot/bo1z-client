@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { leb, parse, rebuild } from '../patch/wasm.mjs';
+import { leb, parse, rebuild } from '../patch/wasm.ts';
 
 const I32 = 0x7f;
-const section = (id, content) => [id, ...leb(content.length), ...content];
-const vec = items => [...leb(items.length), ...items.flat()];
-const text = value => [...leb(value.length), ...new TextEncoder().encode(value)];
-const body = content => [...leb(content.length), ...content];
+const section = (id: number, content: number[]) => [id, ...leb(content.length), ...content];
+const vec = (items: number[][]) => [...leb(items.length), ...items.flat()];
+const text = (value: string) => [...leb(value.length), ...new TextEncoder().encode(value)];
+const body = (content: number[]) => [...leb(content.length), ...content];
 
 const tiny = Uint8Array.from([
   0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
@@ -26,16 +26,17 @@ test('reconstruire sans changement redonne le binaire à l’octet près', () =>
 
 test('un import ajouté décale les fonctions définies partout où elles sont référencées', async () => {
   const module = parse(tiny);
-  const seen = [];
+  const seen: number[] = [];
   const insert = { at: module.bodies[1].code, end: module.bodies[1].code, bytes: [0x41, 42, 0x10, ...leb(module.importedFuncs)] };
   const patched = rebuild(module, {
     imports: [{ module: 'env', name: 'extra', params: [I32], results: [] }],
     edits: new Map([[2, [insert]]]),
   });
 
-  const { instance } = await WebAssembly.instantiate(patched, { env: { log() {}, extra: value => seen.push(value) } });
-  assert.equal(instance.exports.callSeven(), 7);
-  assert.equal(instance.exports.table.get(0)(), 7);
+  const { instance } = await WebAssembly.instantiate(patched, { env: { log() {}, extra: (value: number) => seen.push(value) } });
+  const { callSeven, table } = instance.exports as { callSeven: () => number; table: WebAssembly.Table };
+  assert.equal(callSeven(), 7);
+  assert.equal(table.get(0)(), 7);
   assert.deepEqual(seen, [42]);
   assert.deepEqual([...parse(patched).names], [['log', 0], ['extra', 1], ['seven', 2], ['callSeven', 3]]);
 });
@@ -48,5 +49,5 @@ test('un appel remplacé par une édition n’est pas renuméroté par-dessus', 
     edits: new Map([[2, [{ at: code, end: end - 1, bytes: [0x41, 9] }]]]),
   });
   const { instance } = await WebAssembly.instantiate(patched, { env: { log() {}, extra() {} } });
-  assert.equal(instance.exports.callSeven(), 9);
+  assert.equal((instance.exports.callSeven as () => number)(), 9);
 });

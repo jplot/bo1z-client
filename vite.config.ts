@@ -2,7 +2,7 @@ import vue from '@vitejs/plugin-vue';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
-import { patchEngine } from './patch/engine.mjs';
+import { patchEngine } from './patch/engine.ts';
 
 const client = (file: string) => path.resolve(import.meta.dirname, 'client', file);
 const engine = (file: string) => readFile(path.resolve(import.meta.dirname, 'engine', file));

@@ -16,6 +16,7 @@
   },
   "include": [
     "server",
+    "patch",
     "test",
     "prefetch.ts"
   ]

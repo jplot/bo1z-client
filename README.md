@@ -27,7 +27,7 @@ Then open http://127.0.0.1:8484 in Chrome.
 
 ## Patching the engine
 
-`npm run build` patches `engine/KisakBlack-web.wasm` (`patch/engine.mjs`) and writes it into `dist/artifacts/` next to the glue, without network: sending, receiving and `connect` to an IPv4 address go through `kbnet.js`, pausing no longer freezes the host of a multiplayer game (in solo, Esc still pauses the game), assertions are no longer fatal. The glue (`engine/KisakBlack-web.mjs`) declares the added imports and is edited directly, like the rest of the site.
+`npm run build` patches `engine/KisakBlack-web.wasm` (`patch/engine.ts`) and writes it into `dist/artifacts/` next to the glue, without network: sending, receiving and `connect` to an IPv4 address go through `kbnet.js`, pausing no longer freezes the host of a multiplayer game (in solo, Esc still pauses the game), assertions are no longer fatal. The glue (`engine/KisakBlack-web.mjs`) declares the added imports and is edited directly, like the rest of the site.
 
 ## Playing together
 

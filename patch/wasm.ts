@@ -7,8 +7,21 @@ const START = 8;
 const ELEMENT = 9;
 const CODE = 10;
 
+export type Section = { id: number; head: number; start: number; end: number };
+export type Body = { head: number; start: number; code: number; end: number };
+export type Module = {
+  bytes: Uint8Array; sections: Section[]; importedFuncs: number; types: string[]; bodies: Body[]; names: Map<string, number>; nameSection?: Section;
+};
+// funcAt/funcEnd: the function index operand of a call or ref.func, which the rebuild renumbers.
+export type Instruction = { at: number; end: number; op: number; sub?: number; index?: number; funcAt?: number; funcEnd?: number; offset?: number; value?: number };
+export type Import = { module: string; name: string; params: number[]; results: number[] };
+export type Edit = { at: number; end: number; bytes: ArrayLike<number> };
+
 class Reader {
-  constructor(bytes, pos = 0) {
+  bytes: Uint8Array;
+  pos: number;
+
+  constructor(bytes: Uint8Array, pos = 0) {
     this.bytes = bytes;
     this.pos = pos;
   }
@@ -51,8 +64,8 @@ class Reader {
   }
 }
 
-export function leb(value) {
-  const out = [];
+export function leb(value: number) {
+  const out: number[] = [];
   do {
     let byte = value & 0x7f;
     value >>>= 7;
@@ -62,8 +75,8 @@ export function leb(value) {
   return out;
 }
 
-export function sleb(value) {
-  const out = [];
+export function sleb(value: number) {
+  const out: number[] = [];
   for (;;) {
     const byte = value & 0x7f;
     value >>= 7;
@@ -72,27 +85,27 @@ export function sleb(value) {
   }
 }
 
-const nameBytes = text => {
+const nameBytes = (text: string) => {
   const encoded = new TextEncoder().encode(text);
   return [...leb(encoded.length), ...encoded];
 };
 
-function skipBlockType(r) {
+function skipBlockType(r: Reader) {
   const byte = r.bytes[r.pos];
   if (byte === 0x40 || (byte >= 0x69 && byte <= 0x7f)) r.pos++;
   else r.skipLeb();
 }
 
-function memarg(r) {
+function memarg(r: Reader) {
   const align = r.u32();
   if (align & 0x40) r.u32();
   return r.u32();
 }
 
-function instruction(r) {
+function instruction(r: Reader): Instruction {
   const at = r.pos;
   const op = r.byte();
-  const ins = { at, op };
+  const ins: Instruction = { at, op, end: at };
   if (op === 0x02 || op === 0x03 || op === 0x04 || op === 0x06) skipBlockType(r);
   else if (op === 0x10 || op === 0x12 || op === 0xd2) {
     ins.funcAt = r.pos;
@@ -121,7 +134,7 @@ function instruction(r) {
       r.u32();
       r.u32();
     } else if (sub === 9 || sub === 11 || sub === 13 || (sub >= 15 && sub <= 17)) r.u32();
-    else if (sub > 7) throw new Error(`0xfc ${sub} inconnu à ${at}`);
+    else if (sub > 7) throw new Error(`unknown 0xfc ${sub} at ${at}`);
   } else if (op === 0xfd) {
     const sub = ins.sub = r.u32();
     if (sub <= 11 || sub === 92 || sub === 93) ins.offset = memarg(r);
@@ -135,12 +148,12 @@ function instruction(r) {
     const sub = ins.sub = r.u32();
     if (sub === 3) r.pos += 1;
     else ins.offset = memarg(r);
-  } else if (op === 0x1f || op === 0xfb) throw new Error(`opcode 0x${op.toString(16)} non géré à ${at}`);
+  } else if (op === 0x1f || op === 0xfb) throw new Error(`unhandled opcode 0x${op.toString(16)} at ${at}`);
   ins.end = r.pos;
   return ins;
 }
 
-function locals(r) {
+function locals(r: Reader) {
   const groups = r.u32();
   for (let i = 0; i < groups; i++) {
     r.u32();
@@ -149,14 +162,14 @@ function locals(r) {
   }
 }
 
-export function* instructions(bytes, start, end) {
+export function* instructions(bytes: Uint8Array, start: number, end: number) {
   const r = new Reader(bytes, start);
   while (r.pos < end) yield instruction(r);
 }
 
-function sections(bytes) {
+function sections(bytes: Uint8Array) {
   const r = new Reader(bytes, 8);
-  const list = [];
+  const list: Section[] = [];
   while (r.pos < bytes.length) {
     const head = r.pos;
     const id = r.byte();
@@ -167,15 +180,15 @@ function sections(bytes) {
   return list;
 }
 
-export function parse(bytes) {
+export function parse(bytes: Uint8Array) {
   const list = sections(bytes);
-  const section = id => list.find(s => s.id === id);
-  const module = { bytes, sections: list, importedFuncs: 0, types: [], bodies: [], names: new Map() };
+  const section = (id: number) => list.find(s => s.id === id)!;
+  const module: Module = { bytes, sections: list, importedFuncs: 0, types: [], bodies: [], names: new Map() };
 
   const types = new Reader(bytes, section(TYPE).start);
   for (let count = types.u32(), i = 0; i < count; i++) {
     const at = types.pos;
-    if (types.byte() !== 0x60) throw new Error(`type ${i} non fonctionnel`);
+    if (types.byte() !== 0x60) throw new Error(`type ${i} is not a function type`);
     for (let vec = 0; vec < 2; vec++) {
       const length = types.u32();
       types.pos += length;
@@ -237,10 +250,10 @@ export function parse(bytes) {
 }
 
 class Writer {
-  chunks = [];
+  chunks: ArrayLike<number>[] = [];
   length = 0;
 
-  push(bytes) {
+  push(bytes: ArrayLike<number>) {
     this.chunks.push(bytes);
     this.length += bytes.length;
     return this;
@@ -257,15 +270,17 @@ class Writer {
   }
 }
 
-function constExpr(r, w, func) {
+type Renumber = (index: number) => number;
+
+function constExpr(r: Reader, w: Writer, func: Renumber) {
   for (;;) {
     const ins = instruction(r);
-    w.push(ins.op === 0xd2 ? [0xd2, ...leb(func(ins.index))] : r.bytes.subarray(ins.at, ins.end));
+    w.push(ins.op === 0xd2 ? [0xd2, ...leb(func(ins.index!))] : r.bytes.subarray(ins.at, ins.end));
     if (ins.op === 0x0b) return;
   }
 }
 
-function elementSection(bytes, s, func) {
+function elementSection(bytes: Uint8Array, s: Section, func: Renumber) {
   const r = new Reader(bytes, s.start);
   const count = r.u32();
   const w = new Writer().push(leb(count));
@@ -285,7 +300,7 @@ function elementSection(bytes, s, func) {
   return w.bytes();
 }
 
-function exportSection(bytes, s, func) {
+function exportSection(bytes: Uint8Array, s: Section, func: Renumber) {
   const r = new Reader(bytes, s.start);
   const count = r.u32();
   const w = new Writer().push(leb(count));
@@ -300,7 +315,7 @@ function exportSection(bytes, s, func) {
   return w.bytes();
 }
 
-function nameSection(bytes, s, func, importedFuncs, added) {
+function nameSection(bytes: Uint8Array, s: Section, func: Renumber, importedFuncs: number, added: string[]) {
   const r = new Reader(bytes, s.start);
   const w = new Writer().push(bytes.subarray(s.start, s.start + 5));
   r.name();
@@ -343,7 +358,7 @@ function nameSection(bytes, s, func, importedFuncs, added) {
   return w.bytes();
 }
 
-function codeSection(module, s, func, shift, edits) {
+function codeSection(module: Module, s: Section, func: Renumber, shift: number, edits: Map<number, Edit[]>) {
   const { bytes, importedFuncs } = module;
   const r = new Reader(bytes, s.start);
   r.u32();
@@ -351,17 +366,17 @@ function codeSection(module, s, func, shift, edits) {
   module.bodies.forEach((body, i) => {
     const patches = edits.get(importedFuncs + i) ?? [];
     const list = [...patches];
-    const replaced = at => patches.some(patch => at >= patch.at && at < patch.end);
+    const replaced = (at: number) => patches.some(patch => at >= patch.at && at < patch.end);
     if (shift) {
       for (const ins of instructions(bytes, body.code, body.end))
-        if (ins.funcAt !== undefined && ins.index >= importedFuncs && !replaced(ins.funcAt)) list.push({ at: ins.funcAt, end: ins.funcEnd, bytes: leb(func(ins.index)) });
+        if (ins.funcAt !== undefined && ins.index! >= importedFuncs && !replaced(ins.funcAt)) list.push({ at: ins.funcAt, end: ins.funcEnd!, bytes: leb(func(ins.index!)) });
     }
     if (!list.length) return w.push(bytes.subarray(body.head, body.end));
     list.sort((a, b) => a.at - b.at);
     const out = new Writer();
     let at = body.start;
     for (const edit of list) {
-      if (edit.at < at) throw new Error(`éditions qui se chevauchent dans la fonction ${importedFuncs + i}`);
+      if (edit.at < at) throw new Error(`overlapping edits in function ${importedFuncs + i}`);
       out.push(bytes.subarray(at, edit.at)).push(edit.bytes);
       at = edit.end;
     }
@@ -372,13 +387,13 @@ function codeSection(module, s, func, shift, edits) {
 }
 
 // imports: functions added after the existing imports, so every defined function moves up by imports.length.
-// edits: Map(original function index → [{ at, end, bytes }]), absolute positions in the original binary.
-export function rebuild(module, { imports = [], edits = new Map() } = {}) {
+// edits: original function index → [{ at, end, bytes }], absolute positions in the original binary.
+export function rebuild(module: Module, { imports = [] as Import[], edits = new Map<number, Edit[]>() } = {}) {
   const { bytes, importedFuncs } = module;
   const shift = imports.length;
-  const func = index => (index >= importedFuncs ? index + shift : index);
+  const func = (index: number) => (index >= importedFuncs ? index + shift : index);
   const types = [...module.types];
-  const typeOf = ({ params, results }) => {
+  const typeOf = ({ params, results }: Import) => {
     const key = [0x60, ...leb(params.length), ...params, ...leb(results.length), ...results].join(',');
     return types.includes(key) ? types.indexOf(key) : types.push(key) - 1;
   };
@@ -386,17 +401,17 @@ export function rebuild(module, { imports = [], edits = new Map() } = {}) {
 
   const out = new Writer().push(bytes.subarray(0, 8));
   for (const s of module.sections) {
-    let content = null;
+    let content: Uint8Array | null = null;
     if (s.id === TYPE && types.length > module.types.length) {
-      content = new Writer().push(leb(types.length));
-      types.forEach(key => content.push(key.split(',').map(Number)));
-      content = content.bytes();
+      const w = new Writer().push(leb(types.length));
+      types.forEach(key => w.push(key.split(',').map(Number)));
+      content = w.bytes();
     } else if (s.id === IMPORT && shift) {
       const r = new Reader(bytes, s.start);
       const count = r.u32();
-      content = new Writer().push(leb(count + shift)).push(bytes.subarray(r.pos, s.end));
-      importEntries.forEach(entry => content.push(entry));
-      content = content.bytes();
+      const w = new Writer().push(leb(count + shift)).push(bytes.subarray(r.pos, s.end));
+      importEntries.forEach(entry => w.push(entry));
+      content = w.bytes();
     } else if (s.id === CODE && (shift || edits.size)) content = codeSection(module, s, func, shift, edits);
     else if (s.id === ELEMENT && shift) content = elementSection(bytes, s, func);
     else if (s.id === EXPORT && shift) content = exportSection(bytes, s, func);
@@ -408,7 +423,7 @@ export function rebuild(module, { imports = [], edits = new Map() } = {}) {
         r.byte();
         r.byte();
         for (let ins = instruction(r); ins.op !== 0x0b; ins = instruction(r))
-          if (ins.op === 0xd2) throw new Error('ref.func dans un global : renumérotation non gérée');
+          if (ins.op === 0xd2) throw new Error('ref.func in a global: renumbering not handled');
       }
     }
     if (content) out.push([s.id, ...leb(content.length)]).push(content);
