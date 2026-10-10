@@ -16,6 +16,8 @@ const HOST = process.env.HOST ?? '127.0.0.1';
 const PORT = Number(process.env.PORT ?? 8484);
 const NET_PORT = Number(process.env.NET_PORT ?? 3074);
 const CACHE = process.env.CACHE !== '0';
+const TRIMMED = (process.env.PREFIX ?? '').replace(/^\/+|\/+$/g, '');
+const PREFIX = TRIMMED ? `/${TRIMMED}/` : '/';
 const ICE_SERVERS = JSON.parse(process.env.ICE_SERVERS ?? '[{"urls":"stun:stun.l.google.com:19302"}]');
 const ROOT = path.join(import.meta.dirname, '..');
 const OVERRIDES = path.join(ROOT, 'overrides');
@@ -33,7 +35,7 @@ const app = fastify();
 await app.register(fastifyWebsocket, { options: { maxPayload: 64 * 1024 } });
 // Le moteur patché par le build (overrides/) passe avant le site (web/).
 await app.register(fastifyStatic, {
-  root: [path.join(OVERRIDES, 'bo1z'), WEB],
+  root: [path.join(OVERRIDES, 'bo1z'), WEB], prefix: PREFIX,
   setHeaders: reply => { reply.headers(ISOLATION); },
 });
 app.removeAllContentTypeParsers();
@@ -51,7 +53,7 @@ const LOOPBACK = new BlockList();
 LOOPBACK.addSubnet('127.0.0.0', 8, 'ipv4');
 LOOPBACK.addAddress('::1', 'ipv6');
 app.route({
-  method: ['GET', 'POST'], url: '/telemetry',
+  method: ['GET', 'POST'], url: `${PREFIX}telemetry`,
   handler: async (request, reply) => {
     const address = request.socket.remoteAddress ?? '';
     const local = TELEMETRY_ALL || LOOPBACK.check(address, isIPv6(address) ? 'ipv6' : 'ipv4');
@@ -66,10 +68,17 @@ app.route({
 rooms(app, ICE_SERVERS);
 if (NET_PORT) udpBridge(app, PORT, NET_PORT);
 
-// Les adresses d'avant la mise à la racine (liens de salon partagés compris) mènent à la même page sans /bo1z.
-const unprefixed = async (request: FastifyRequest, reply: FastifyReply) => reply.redirect(`/${request.url.slice('/bo1z'.length).replace(/^\//, '')}`, 301);
-app.get('/bo1z', unprefixed);
-app.get('/bo1z/*', unprefixed);
+// Redirections temporaires : le préfixe peut changer, un 301 resterait dans le navigateur. Les adresses en /bo1z/ d'avant
+// le préfixe réglable (liens de salon partagés compris) mènent à la même page sous PREFIX.
+const under = (from: string) => async (request: FastifyRequest, reply: FastifyReply) => reply.redirect(`${PREFIX}${request.url.slice(from.length).replace(/^\//, '')}`, 302);
+if (PREFIX !== '/') {
+  app.get('/', under('/'));
+  app.get(PREFIX.slice(0, -1), under(PREFIX.slice(0, -1)));
+}
+if (PREFIX !== '/bo1z/') {
+  app.get('/bo1z', under('/bo1z'));
+  app.get('/bo1z/*', under('/bo1z'));
+}
 
 // Vidéos de chargement (<video>) et reprise d'un fichier entier par download-worker.js : servies depuis le cache, hors ligne compris.
 function byteRange(header: string | undefined, length: number) {
@@ -91,10 +100,12 @@ function serve(request: FastifyRequest, reply: FastifyReply, status: number, hea
 app.setNotFoundHandler(async (request, reply) => {
   const url = new URL(request.url, 'http://127.0.0.1');
   if (request.method !== 'GET' && request.method !== 'HEAD') return reply.code(405).send();
-  const page = await mapPage(url.pathname);
+  if (!url.pathname.startsWith(PREFIX)) return reply.code(404).send();
+  const site = url.pathname.slice(PREFIX.length - 1);
+  const page = await mapPage(site);
   if (page) return serve(request, reply, 200, { 'content-type': 'text/html', 'content-length': Buffer.byteLength(page) }, Readable.from([page]));
   // Chez vel.gg, et donc dans cache/, tout vit sous /bo1z/.
-  const remote = new URL(`/bo1z${url.pathname}${url.search}`, 'http://127.0.0.1');
+  const remote = new URL(`/bo1z${site}${url.search}`, 'http://127.0.0.1');
   const headers = Object.fromEntries(['user-agent', 'accept-encoding'].filter(name => request.headers[name]).map(name => [name, request.headers[name]]));
   if (!CACHE) {
     const response = await upstream(remote, request.headers.range ? { ...headers, range: request.headers.range } : headers);
@@ -111,4 +122,4 @@ app.setNotFoundHandler(async (request, reply) => {
 });
 
 await app.listen({ port: PORT, host: HOST });
-console.log(`http://${HOST}:${PORT}/`);
+console.log(`http://${HOST}:${PORT}${PREFIX}`);

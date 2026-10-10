@@ -49,7 +49,7 @@ test('les anciennes adresses en /bo1z mènent à la même page sans le préfixe,
   t.after(() => child.kill());
   for (const [old, now] of [['/bo1z?room=soiree', '/?room=soiree'], ['/bo1z/', '/'], ['/bo1z/nacht?room=soiree', '/nacht?room=soiree']]) {
     const response = await fetch(`http://127.0.0.1:8614${old}`, { redirect: 'manual' });
-    assert.equal(response.status, 301);
+    assert.equal(response.status, 302);
     assert.equal(response.headers.get('location'), now);
   }
   const host = join(8614, 'soiree', undefined, 'kino', 'Hote');

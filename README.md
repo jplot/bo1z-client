@@ -14,7 +14,7 @@ Black Ops Zombies dans le navigateur, à plusieurs. Le point de départ est le p
 
 ```sh
 node patch/build.mjs   # écrit overrides/bo1z/artifacts/KisakBlack-web.wasm
-node server/index.ts   # port 8484, ou PORT=...
+node server/index.ts   # port 8484, ou PORT=... ; site à la racine, ou PREFIX=/bo1z pour le servir sous un chemin
 ```
 
 Puis ouvrir http://127.0.0.1:8484 dans Chrome.
@@ -34,7 +34,7 @@ Deux façons de se rejoindre ; dans les deux cas, celui qui rejoint charge d'abo
 
 ### Salon (WebRTC)
 
-Le menu (la racine du site ; les anciennes adresses en `/bo1z/…` y redirigent) a deux onglets. Solo montre les cartes par jeu, en mosaïque ou en liste, avec le Mode Enfer. Multijoueur liste les salons ouverts : code, carte, pseudos (l'hôte en premier) et places, quatre au plus. REJOINDRE ouvre la carte de l'hôte, REJOINDRE AVEC UN CODE prend les quatre lettres que l'hôte donne. + CRÉER UN SALON fait choisir la carte et tire un code de quatre consonnes encore libre ; SALON PRIVÉ le retire de la liste, on ne le rejoint plus qu'avec son code (`/rooms?code=<code>` le trouve). `/bo1z?room=<code>` ouvre la saisie du code déjà remplie. Le pseudo est retenu par le navigateur et envoyé au jeu (`name`) avant la connexion ; sans pseudo, le serveur renomme les doublons « Unknown Soldier 1 ». Le Mode Enfer ne s'applique qu'en solo pour l'instant.
+Le menu (la racine du site, ou `PREFIX` ; les anciennes adresses en `/bo1z/…` y redirigent) a deux onglets. Solo montre les cartes par jeu, en mosaïque ou en liste, avec le Mode Enfer. Multijoueur liste les salons ouverts : code, carte, pseudos (l'hôte en premier) et places, quatre au plus. REJOINDRE ouvre la carte de l'hôte, REJOINDRE AVEC UN CODE prend les quatre lettres que l'hôte donne. + CRÉER UN SALON fait choisir la carte et tire un code de quatre consonnes encore libre ; SALON PRIVÉ le retire de la liste, on ne le rejoint plus qu'avec son code (`/rooms?code=<code>` le trouve). `/bo1z?room=<code>` ouvre la saisie du code déjà remplie. Le pseudo est retenu par le navigateur et envoyé au jeu (`name`) avant la connexion ; sans pseudo, le serveur renomme les doublons « Unknown Soldier 1 ». Le Mode Enfer ne s'applique qu'en solo pour l'instant.
 
 La page de carte lance le téléchargement d'elle-même et affiche les étapes (liaison avec l'hôte, téléchargement, moteur, prêt) avec les pseudos du salon ; le seul geste demandé est le clic qui capture la souris. Chez celui qui rejoint, l'écran reste jusqu'à ce que les instantanés de l'hôte arrivent sans interruption, ce qui cache le chargement de la partie de l'hôte. Les erreurs (liaison impossible, hôte parti, téléchargement interrompu, stockage, navigateur, plantage du moteur) passent par la même page, en français, avec la reprise qui convient.
 
@@ -71,7 +71,7 @@ heroku create <nom> --region eu
 git push heroku main
 ```
 
-Les joueurs ouvrent `https://<nom>.herokuapp.com/bo1z`. Le build de déploiement (`heroku-postbuild`) patche `engine/` sans contacter vel.gg ; le site vient de `web/`. Le `Procfile` démarre sans pont UDP (`NET_PORT=0`, Heroku n'en reçoit pas) et sans cache disque (`CACHE=0`, disque éphémère) : seules les données du jeu transitent depuis vel.gg, à chaque premier chargement. La branche `assets` n'y part pas : Heroku refuse les dépôts de plus de 1 Go. Il faut une offre qui ne se met pas en veille (Basic), sinon les parties sont coupées après 30 minutes sans visite.
+Les joueurs ouvrent `https://<nom>.herokuapp.com/`. Le build de déploiement (`heroku-postbuild`) patche `engine/` sans contacter vel.gg ; le site vient de `web/`. Le `Procfile` démarre à la racine (`PREFIX=` vide), sans pont UDP (`NET_PORT=0`, Heroku n'en reçoit pas) et sans cache disque (`CACHE=0`, disque éphémère) : seules les données du jeu transitent depuis vel.gg, à chaque premier chargement. La branche `assets` n'y part pas : Heroku refuse les dépôts de plus de 1 Go. Il faut une offre qui ne se met pas en veille (Basic), sinon les parties sont coupées après 30 minutes sans visite.
 
 Le site n'a pas de mot de passe : quiconque connaît l'adresse peut y jouer, et elle relaie le jeu d'Activision.
 
