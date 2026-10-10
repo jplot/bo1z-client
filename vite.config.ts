@@ -23,6 +23,8 @@ export default defineConfig({
   base: './',
   publicDir: false,
   worker: { format: 'es' },
+  // vue-i18n: Composition API only, without its <i18n-t> component and v-t directive (unused) or devtools in production.
+  define: { __VUE_I18N_LEGACY_API__: false, __VUE_I18N_FULL_INSTALL__: false, __INTLIFY_PROD_DEVTOOLS__: false },
   build: {
     outDir: path.resolve(import.meta.dirname, 'dist'),
     emptyOutDir: true,

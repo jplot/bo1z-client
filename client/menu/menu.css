@@ -160,6 +160,12 @@
     font: 700 17px var(--ui); color: var(--ink); text-align: right; outline: none; }
   .opt input[type=number]:focus { border-color: var(--amber); }
   .opt .switch { grid-column: 2 / span 2; justify-self: end; }
+  .lang { grid-column: 2 / span 2; justify-self: end; display: flex; border: 1px solid var(--line); background: var(--glass); }
+  .lang button { padding: 7px 14px; border: 0; background: transparent; cursor: pointer; font: 600 16px var(--ui); letter-spacing: .06em; color: var(--muted); }
+  .lang button + button { border-left: 1px solid var(--line); }
+  .lang button:hover { color: var(--ink); }
+  .lang button[aria-checked="true"] { color: var(--amber); background: rgba(230, 168, 59, .1); }
+  .lang button:focus-visible { outline: 1px solid var(--amber); outline-offset: -1px; }
   .opt :is(input, .switch):focus-visible { outline: 1px solid var(--amber); outline-offset: 2px; }
   .options .actions { justify-content: center; }
   .code { display: flex; gap: 10px; }

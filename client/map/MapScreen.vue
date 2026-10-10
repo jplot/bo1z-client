@@ -21,8 +21,8 @@ onMounted(() => startSession(game.value!));
 </script>
 
 <template>
-  <canvas id="game" ref="game" width="1280" height="720" tabindex="0" :aria-label="map.name"></canvas>
+  <canvas id="game" ref="game" width="1280" height="720" tabindex="0" :aria-label="$t(`maps.${map.slug}.name`)"></canvas>
   <Loading />
-  <p class="kb-resume" v-if="view.screen === 'playing' && view.resume">Clique pour reprendre</p>
+  <p class="kb-resume" v-if="view.screen === 'playing' && view.resume">{{ $t('game.resume') }}</p>
   <Perf v-if="perf !== 'off'" :mode="perf" />
 </template>

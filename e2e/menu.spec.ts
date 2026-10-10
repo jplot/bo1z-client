@@ -66,3 +66,26 @@ test('Options : la sensibilité réglée est gardée pour les pages de carte', a
   await page.locator('#o-sens').fill('2.5');
   expect(JSON.parse((await page.evaluate(() => localStorage.getItem('bo1z-settings')))!).sensitivity).toBe(2.5);
 });
+
+test.describe('un navigateur en allemand', () => {
+  test.use({ locale: 'de-DE' });
+
+  test('Langue : ni français ni anglais, le menu et les pages de carte sont en anglais', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#tab-multi')).toContainText('Multiplayer');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await page.context().route('**/web/shaders/**', route => route.abort());
+    await page.goto('/nacht');
+    await expect(page.locator('.kb-error-title')).toHaveText('Download interrupted', { timeout: 60_000 });
+  });
+
+  test('Langue : Français choisi dans les Options passe le menu en français tout de suite, et le reste', async ({ page }) => {
+    await page.goto('/');
+    await page.click('#open-options');
+    await page.click('#o-lang [lang=fr]');
+    await expect(page.locator('#tab-multi')).toContainText('Multijoueur');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
+    await page.reload();
+    await expect(page.locator('#tab-multi')).toContainText('Multijoueur');
+  });
+});

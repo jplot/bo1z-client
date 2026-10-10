@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { diagnostics } from '../game/diagnostics.ts';
 import { hiddenRoom, room } from '../game/pack.ts';
 import { currentEngine, view } from '../game/session.ts';
@@ -9,6 +10,7 @@ import { link, traffic } from '../net/link.ts';
 // Loaded on the first F3. Engine frames: present intervals from its shared ring (own cursor, telemetry keeps all of its own);
 // page: requestAnimationFrame cadence; the page's long tasks.
 const props = defineProps<{ mode: 'compact' | 'detail' }>();
+const { t, n } = useI18n();
 const WINDOW_MS = 5000, UPDATE_MS = 500, GRAPH_MS = 4000;
 const RENDERERS: Record<string, string> = { webgpu: 'WebGPU', 'webgpu-pipeline': 'WebGPU', webgl2: 'WebGL 2' };
 type Sample = { t: number; ms: number };
@@ -122,7 +124,7 @@ function update() {
     memory = engine?.telemetryMemory();
     audio = engine?.audioSnapshot();
   } catch {}
-  s.memory = memory ? `${num((memory.wasmBreak ?? memory.wasmBytes) / 2 ** 30, 2)} / ${num(memory.wasmBytes / 2 ** 30, 2)} Go` : '–';
+  s.memory = memory ? `${num((memory.wasmBreak ?? memory.wasmBytes) / 2 ** 30, 2)} / ${n(memory.wasmBytes / 2 ** 30, { style: 'unit', unit: 'gigabyte', minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '–';
   s.under = audio?.underruns ?? null;
   const rate = (key: 'sent' | 'received') => (netPrevious ? Math.round((traffic[key] - netPrevious[key]) * 1000 / (t - netPrevious.t)) : 0);
   s.sent = rate('sent');
@@ -131,9 +133,9 @@ function update() {
   draw();
 }
 
-const num = (value: number | null | undefined, digits = 1) => (value === null || value === undefined ? '–' : Number(value).toFixed(digits).replace('.', ','));
+const num = (value: number | null | undefined, digits = 1) => (value === null || value === undefined ? '–' : n(value, { minimumFractionDigits: digits, maximumFractionDigits: digits }));
 const tone = (fps: number) => (fps >= 55 ? 'good' : fps >= 30 ? 'warn' : 'bad');
-const linkState = () => (link.label === HOST ? ['hôte du salon', 'good'] : link.relayed ? ['par le relais du serveur', 'relay'] : link.linked ? ['liaison directe', 'good'] : ['liaison en cours', 'warn']);
+const linkState = () => (link.label === HOST ? [t('perf.links.host'), 'good'] : link.relayed ? [t('perf.links.relay'), 'relay'] : link.linked ? [t('perf.links.direct'), 'good'] : [t('perf.links.wait'), 'warn']);
 
 function resize() {
   netPrevious = null;
@@ -156,26 +158,26 @@ onUnmounted(() => {
   <div id="perf-overlay" :class="mode" aria-hidden="true">
     <div class="fps"><b :class="s.present.frames ? tone(s.present.fps) : 'bad'">{{ s.present.frames ? Math.round(s.present.fps) : '–' }}</b><span>FPS</span><em>{{ num(s.present.p50Ms) }} ms</em></div>
     <canvas ref="graph"></canvas>
-    <div class="row" v-if="mode === 'compact'"><span>p95 <b>{{ num(s.present.p95Ms) }} ms</b></span><span>saccades <b :class="s.present.over33 ? 'warn' : ''">{{ s.present.over33 }}</b></span></div>
+    <div class="row" v-if="mode === 'compact'"><span>p95 <b>{{ num(s.present.p95Ms) }} ms</b></span><span>{{ $t('perf.hitches') }} <b :class="s.present.over33 ? 'warn' : ''">{{ s.present.over33 }}</b></span></div>
     <div class="rows" v-else>
-      <div class="row"><span>médiane <b>{{ num(s.present.p50Ms) }} ms</b></span><span>p95 <b>{{ num(s.present.p95Ms) }} ms</b></span></div>
-      <div class="row"><span>1 % bas <b>{{ s.present.p99Ms ? `${Math.round(1000 / s.present.p99Ms)} FPS` : '–' }}</b></span><span>pire <b>{{ num(s.present.maxMs) }} ms</b></span></div>
-      <div class="row"><span>saccades &gt;33 ms <b :class="s.present.over33 ? 'warn' : ''">{{ s.present.over33 }}</b> · &gt;100 ms <b :class="s.present.over100 ? 'bad' : ''">{{ s.present.over100 }}</b></span></div>
-      <div class="row"><span>depuis le début <b>{{ totalOver33 }} saccade{{ totalOver33 > 1 ? 's' : '' }}</b></span></div>
-      <div class="group"><h4>Moteur</h4>
-        <div class="row"><span>rendu <b>{{ s.renderer }}</b></span><span>image <b>{{ s.size }}</b></span></div>
-        <div class="row"><span>mémoire <b>{{ s.memory }}</b></span></div>
-        <div class="row"><span>page <b>{{ s.raf.frames ? Math.round(s.raf.fps) : '–' }}</b> FPS</span><span>occupée <b>{{ s.busyPct === null ? '–' : `${num(s.busyPct, 0)} %` }}</b></span></div>
+      <div class="row"><span>{{ $t('perf.median') }} <b>{{ num(s.present.p50Ms) }} ms</b></span><span>p95 <b>{{ num(s.present.p95Ms) }} ms</b></span></div>
+      <div class="row"><span>{{ $t('perf.low') }} <b>{{ s.present.p99Ms ? `${Math.round(1000 / s.present.p99Ms)} FPS` : '–' }}</b></span><span>{{ $t('perf.worst') }} <b>{{ num(s.present.maxMs) }} ms</b></span></div>
+      <div class="row"><span>{{ $t('perf.hitches33') }} <b :class="s.present.over33 ? 'warn' : ''">{{ s.present.over33 }}</b> · &gt;100 ms <b :class="s.present.over100 ? 'bad' : ''">{{ s.present.over100 }}</b></span></div>
+      <div class="row"><span>{{ $t('perf.sinceStart') }} <b>{{ $t('perf.total', totalOver33) }}</b></span></div>
+      <div class="group"><h4>{{ $t('perf.engine') }}</h4>
+        <div class="row"><span>{{ $t('perf.render') }} <b>{{ s.renderer }}</b></span><span>{{ $t('perf.size') }} <b>{{ s.size }}</b></span></div>
+        <div class="row"><span>{{ $t('perf.memory') }} <b>{{ s.memory }}</b></span></div>
+        <div class="row"><span>{{ $t('perf.page') }} <b>{{ s.raf.frames ? Math.round(s.raf.fps) : '–' }}</b> FPS</span><span>{{ $t('perf.busy') }} <b>{{ s.busyPct === null ? '–' : $n(s.busyPct / 100, { style: 'percent' }) }}</b></span></div>
       </div>
-      <div class="group"><h4>Son</h4>
-        <div class="row"><span>coupures <b :class="s.under ? 'warn' : ''">{{ s.under ?? '–' }}</b></span></div>
+      <div class="group"><h4>{{ $t('perf.sound') }}</h4>
+        <div class="row"><span>{{ $t('perf.dropouts') }} <b :class="s.under ? 'warn' : ''">{{ s.under ?? '–' }}</b></span></div>
       </div>
-      <div class="group" v-if="room"><h4>Salon{{ hiddenRoom ? ' privé' : '' }} {{ room }}</h4>
-        <div class="row"><span :class="`dot ${linkState()[1]}`">{{ linkState()[0] }}</span><span>perdus <b :class="traffic.dropped ? 'warn' : ''">{{ traffic.dropped }}</b></span></div>
-        <div class="row"><span>envoyés <b>{{ s.sent }}</b>/s</span><span>reçus <b>{{ s.received }}</b>/s</span></div>
+      <div class="group" v-if="room"><h4>{{ $t(hiddenRoom ? 'privateRoom' : 'room', { code: room }) }}</h4>
+        <div class="row"><span :class="`dot ${linkState()[1]}`">{{ linkState()[0] }}</span><span>{{ $t('perf.lost') }} <b :class="traffic.dropped ? 'warn' : ''">{{ traffic.dropped }}</b></span></div>
+        <div class="row"><span>{{ $t('perf.sent') }} <b>{{ s.sent }}</b>/s</span><span>{{ $t('perf.received') }} <b>{{ s.received }}</b>/s</span></div>
       </div>
     </div>
-    <div class="row bad" v-if="(s.sinceLastMs ?? 0) > 250">aucune image depuis {{ num((s.sinceLastMs ?? 0) / 1000) }} s</div>
+    <div class="row bad" v-if="(s.sinceLastMs ?? 0) > 250">{{ $t('perf.stalled', { s: num((s.sinceLastMs ?? 0) / 1000) }) }}</div>
   </div>
 </template>
 

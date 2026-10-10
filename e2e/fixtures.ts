@@ -11,7 +11,7 @@ export const BASE = 'http://127.0.0.1:8630';
 // Profiles kept in .cache/e2e: each map only downloads on the first run.
 async function browser(name: string, use: (page: Page) => Promise<void>) {
   const context = await chromium.launchPersistentContext(new URL(`../.cache/e2e/${name}`, import.meta.url).pathname,
-    { channel: 'chrome', headless: false, viewport: { width: 1280, height: 720 } });
+    { channel: 'chrome', headless: false, viewport: { width: 1280, height: 720 }, locale: 'fr-FR' });
   await use(context.pages()[0] ?? await context.newPage());
   await context.close();
 }

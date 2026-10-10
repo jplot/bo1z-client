@@ -5,7 +5,7 @@ import { isFull, join, lookup, state, type Room } from './store.ts';
 const dialog = ref<HTMLDialogElement>();
 const boxes = ref<HTMLInputElement[]>([]);
 const letters = ref(['', '', '', '']);
-const note = ref('');
+const note = ref<'' | 'missing' | 'full'>('');
 const disabled = ref(true);
 let typed = '';
 
@@ -18,7 +18,7 @@ async function check(): Promise<Room | null | undefined> {
   const room = await lookup(value);
   if (typed !== value) return null;
   disabled.value = !room || isFull(room);
-  note.value = !room ? 'Aucun salon avec ce code' : isFull(room) ? 'Ce salon est complet' : '';
+  note.value = !room ? 'missing' : isFull(room) ? 'full' : '';
   return room;
 }
 
@@ -66,14 +66,14 @@ defineExpose({ open, check, isOpen: () => Boolean(dialog.value?.open) });
 <template>
   <dialog ref="dialog" class="joincode" id="joincode">
     <form method="dialog">
-      <h2>Rejoindre un salon</h2>
-      <p class="or">Tape le code donné par l’hôte</p>
-      <div class="code" role="group" aria-label="Code du salon">
-        <input v-for="k in 4" :key="k" ref="boxes" :value="letters[k - 1]" autocomplete="off" spellcheck="false" :aria-label="`Lettre ${k}`"
+      <h2>{{ $t('code.title') }}</h2>
+      <p class="or">{{ $t('code.hint') }}</p>
+      <div class="code" role="group" :aria-label="$t('code.label')">
+        <input v-for="k in 4" :key="k" ref="boxes" :value="letters[k - 1]" autocomplete="off" spellcheck="false" :aria-label="$t('code.letter', { n: k })"
           @keydown="key($event, k - 1)" @paste.prevent="fill(k - 1, $event.clipboardData?.getData('text') ?? '')" @input="fill(k - 1, ($event.target as HTMLInputElement).value)">
       </div>
-      <p class="code-note" id="code-note">{{ note }}</p>
-      <div class="actions"><button class="ghost join" id="join-code" type="button" :disabled="disabled" @click="submit">Rejoindre</button><button class="ghost" type="submit">Retour</button></div>
+      <p class="code-note" id="code-note">{{ note && $t(`code.${note}`) }}</p>
+      <div class="actions"><button class="ghost join" id="join-code" type="button" :disabled="disabled" @click="submit">{{ $t('code.join') }}</button><button class="ghost" type="submit">{{ $t('code.back') }}</button></div>
     </form>
   </dialog>
 </template>
