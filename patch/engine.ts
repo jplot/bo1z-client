@@ -90,9 +90,11 @@ function patches(module: Module) {
   const clPaused = pause.list.find((ins, k) => ins.op === 0x41 && pause.list[k + 1]?.op === 0x28)!.value;
   const pausedSkip = (list: Instruction[], k: number) => list[k].op === 0x41 && list[k].value === clPaused && list[k + 1]?.op === 0x28
     && list[k + 2]?.op === 0x28 && list[k + 2].offset === 24 && list[k + 3]?.op === 0x45 && list[k + 4]?.op === 0x0d && list[k + 4].index === 0;
+  // A guest on the host's server (multiplayer 2) keeps the local server its client draws on, but takes the pause path.
   const frame = find(module, '__wrap__Z8SV_Frameii', pausedSkip, 1);
   const [f] = frame.found;
-  add(frame.index, { at: frame.list[f + 3].end, end: frame.list[f + 3].end, bytes: [...multiplayer, 0x72] });
+  add(frame.index, { at: frame.list[f + 3].end, end: frame.list[f + 3].end,
+    bytes: [...multiplayer, ...i32(1), 0x46, 0x72, ...multiplayer, ...i32(2), 0x47, 0x71] });
 
   // Escape during the load that follows connect (no connection nor game yet) raised
   // Com_Error(ERR_DISCONNECT, "Bad server address"): the joining player's game stopped 0.5 s after connect.
@@ -104,6 +106,14 @@ function patches(module: Module) {
   const keys = find(module, 'CL_KeyEvent(int, int, int, unsigned int)', escapeError, 1);
   const [e] = keys.found;
   add(keys.index, { at: keys.list[e].at, end: keys.list[e + 8].at, bytes: [] });
+
+  // vel.gg's collision-tree history took each caller as a JavaScript stack trace: 9 % of the main thread with two players.
+  const returnAddress = module.names.get('emscripten_return_address');
+  for (const name of ['CG_LinkEntityColl(int, unsigned int, float const*, float const*)', 'CG_UnlinkEntityColl(int, unsigned int)']) {
+    const site = find(module, name, (list, k) => list[k].op === 0x10 && list[k].index === returnAddress, 1);
+    const [r] = site.found;
+    add(site.index, { at: site.list[r].at, end: site.list[r].end, bytes: [0x1a, ...i32(0)] });
+  }
 
   // Fatal assertions: a lobby triggers some that solo never reaches, even its host alone (Vec4IsNormalized on a zero
   // quaternion, UnitQuatToAxis from CG_AddPlayerWeapon).

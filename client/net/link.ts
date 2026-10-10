@@ -25,6 +25,7 @@ export let shared: Shared;
 let transport: Transport;
 let roomName: string | null = null;
 let playing = false;
+let joining = false;
 const commands: string[] = [];
 const onPlaying: (() => boolean)[] = [];
 
@@ -42,8 +43,9 @@ export function forward(packet: Uint8Array<ArrayBuffer>) {
 }
 
 // Room host, guest, or a local game another player just joined over the UDP bridge: the game's pause no longer freezes the host.
+// Only from solo: every received datagram comes through here, and must not wake a guest's sleeping server (2).
 function markMultiplayer() {
-  Atomics.store(new Int32Array(shared.multi), 0, 1);
+  Atomics.compareExchange(new Int32Array(shared.multi), 0, 0, 1);
 }
 
 // The server receives on NS_SERVER what a client sends from NS_CLIENT1, and the other way round.
@@ -194,6 +196,7 @@ export function start(options: { room: string | null; hidden: boolean; map: stri
   setInterval(() => {
     if (playing) for (let k = onPlaying.length - 1; k >= 0; k--) if (onPlaying[k]()) onPlaying.splice(k, 1);
   }, 500);
+  joining = Boolean(options.connect);
   if (options.room || options.connect) markMultiplayer();
   if (options.room) transport = room(options.room, options.hidden, options.map);
   else {
@@ -212,5 +215,7 @@ export function enteredGame() {
 
 // The guest's engine has the host's game state: the host's world is what it draws now.
 export function hostGameLoaded() {
-  if (playing) link.joined = true;
+  if (!playing) return;
+  link.joined = true;
+  if (role() === 'guest' || joining) Atomics.store(new Int32Array(shared.multi), 0, 2);
 }
