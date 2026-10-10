@@ -105,7 +105,8 @@ function patches(module: Module) {
   const [e] = keys.found;
   add(keys.index, { at: keys.list[e].at, end: keys.list[e + 8].at, bytes: [] });
 
-  // Fatal assertions: a second player triggers some that solo never reaches (Vec4IsNormalized in CG_AddPlayerWeapon).
+  // Fatal assertions: a lobby triggers some that solo never reaches, even its host alone (Vec4IsNormalized on a zero
+  // quaternion, UnitQuatToAxis from CG_AddPlayerWeapon).
   const asserts = find(module, 'Assert_MyHandler(char const*, int, int, char const*, ...)', (list, k) => list[k].op === 0x00 && list[k + 1]?.op === 0x0b && k + 2 === list.length, 1);
   const frameSize = asserts.list.find(ins => ins.op === 0x41)!.value!;
   const frameBase = asserts.list.find(ins => ins.op === 0x22)!.index!;
