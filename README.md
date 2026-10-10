@@ -5,7 +5,9 @@ Black Ops Zombies dans le navigateur, à plusieurs. Le point de départ est le p
 ## Organisation
 
 - `server/` (Fastify, TypeScript exécuté tel quel par Node) : le relais (site, salons, pont UDP, cache des données du jeu).
-- `web/` : le site, servi à la racine et modifié directement. Le menu (`index.html`, `menu.js`, `menu.css`), la liste de nos cartes (`catalog.mjs`), le gabarit des pages de carte (`map.html`) et leur écran de chargement (`loading.js`, `loading.css`), le réseau (`kbnet.js`, `ring.js`), et le reste du site repris de vel.gg (`play.js`, `engine.js`, `artifacts/KisakBlack-web.mjs`…).
+- `client/` : notre code du site en TypeScript, compilé par Vite : le réseau (`kbnet.ts`, `ring.ts`) et l'encart de performance (`perf-overlay.ts`).
+- `web/` : le reste du site, copié tel quel par Vite. Le menu (`index.html`, `menu.js`, `menu.css`), la liste de nos cartes (`catalog.mjs`), le gabarit des pages de carte (`map.html`) et leur écran de chargement (`loading.js`, `loading.css`), et le site repris de vel.gg (`play.js`, `engine.js`, `artifacts/KisakBlack-web.mjs`…).
+- `dist/` : le site compilé que sert le relais (`npm run build`).
 - `engine/KisakBlack-web.wasm` : le moteur compilé par vel.gg à partir de KisakBlack (C++, GPL-3.0). Seul fichier qu'on ne peut modifier qu'en le patchant.
 - `patch/` : les patchs du wasm et le réécrivain qui les applique.
 - branche `assets` : les données du jeu (cartes, manifestes, images, caches de shaders, vidéos), voir « Jouer sans vel.gg ».
@@ -14,12 +16,13 @@ Black Ops Zombies dans le navigateur, à plusieurs. Le point de départ est le p
 
 ```sh
 node patch/build.mjs   # écrit overrides/bo1z/artifacts/KisakBlack-web.wasm
+npm run build          # compile le site dans dist/ (à refaire après chaque modification de client/ ou web/)
 node server/index.ts   # port 8484, ou PORT=... ; site à la racine, ou PREFIX=/bo1z pour le servir sous un chemin
 ```
 
 Puis ouvrir http://127.0.0.1:8484 dans Chrome.
 
-- Le relais sert d'abord `overrides/` (le moteur patché), puis `web/`, puis les pages de carte rendues depuis `web/map.html`, et enfin les données du jeu depuis `cache/`.
+- Le relais sert d'abord `overrides/` (le moteur patché), puis `dist/`, puis les pages de carte rendues depuis `dist/map.html`, et enfin les données du jeu depuis `cache/`.
 - `cache/` garde les données du jeu en clair, rangées comme sur vel.gg, sans jamais les rafraîchir ; le relais y découpe à la volée les morceaux `?part=k` que demande le jeu. Ce qui manque est téléchargé chez vel.gg.
 - La télémétrie du site reste sur ce poste : seules les pages ouvertes sur cette machine l'envoient, ou toutes avec `TELEMETRY=1` (pour les joueurs du réseau local ; Heroku ne la pose pas). Chaque envoi (plantage avec les 300 dernières lignes de la console du moteur, erreurs, fin de session) est ajouté à `telemetry/<PORT>.jsonl`.
 - `ws://127.0.0.1:<PORT>/kbnet` relie la page au port UDP `NET_PORT` (3074 par défaut, le port que le jeu prend quand `connect` n'en précise pas), ouvert sur le réseau local : le relais affiche au démarrage les adresses à donner aux autres joueurs.
@@ -71,7 +74,7 @@ heroku create <nom> --region eu
 git push heroku main
 ```
 
-Les joueurs ouvrent `https://<nom>.herokuapp.com/`. Le build de déploiement (`heroku-postbuild`) patche `engine/` sans contacter vel.gg ; le site vient de `web/`. Le `Procfile` démarre à la racine (`PREFIX=` vide), sans pont UDP (`NET_PORT=0`, Heroku n'en reçoit pas) et sans cache disque (`CACHE=0`, disque éphémère) : seules les données du jeu transitent depuis vel.gg, à chaque premier chargement. La branche `assets` n'y part pas : Heroku refuse les dépôts de plus de 1 Go. Il faut une offre qui ne se met pas en veille (Basic), sinon les parties sont coupées après 30 minutes sans visite.
+Les joueurs ouvrent `https://<nom>.herokuapp.com/`. Le build de déploiement (`heroku-postbuild`) patche `engine/` sans contacter vel.gg et compile le site dans `dist/` (Vite). Le `Procfile` démarre à la racine (`PREFIX=` vide), sans pont UDP (`NET_PORT=0`, Heroku n'en reçoit pas) et sans cache disque (`CACHE=0`, disque éphémère) : seules les données du jeu transitent depuis vel.gg, à chaque premier chargement. La branche `assets` n'y part pas : Heroku refuse les dépôts de plus de 1 Go. Il faut une offre qui ne se met pas en veille (Basic), sinon les parties sont coupées après 30 minutes sans visite.
 
 Le site n'a pas de mot de passe : quiconque connaît l'adresse peut y jouer, et elle relaie le jeu d'Activision.
 

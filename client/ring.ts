@@ -7,9 +7,9 @@ const SLOT_BYTES = 16 + SLOT_DATA;
 const HEADER_BYTES = 16;
 export const RING_BYTES = HEADER_BYTES + SOCKS * SLOTS * SLOT_BYTES;
 
-const slotOffset = (sock, counter) => HEADER_BYTES + (sock * SLOTS + (counter % SLOTS)) * SLOT_BYTES;
+const slotOffset = (sock: number, counter: number) => HEADER_BYTES + (sock * SLOTS + (counter % SLOTS)) * SLOT_BYTES;
 
-export function push(rings, sock, address, data) {
+export function push(rings: SharedArrayBuffer, sock: number, address: Uint8Array, data: Uint8Array) {
   const header = new Int32Array(rings, 0, SOCKS * 2);
   const head = header[sock * 2];
   if (head - Atomics.load(header, sock * 2 + 1) >= SLOTS) return false;
@@ -21,7 +21,7 @@ export function push(rings, sock, address, data) {
   return true;
 }
 
-export function take(rings, sock, copy) {
+export function take(rings: SharedArrayBuffer, sock: number, copy: (address: Uint8Array, data: Uint8Array) => void) {
   const header = new Int32Array(rings, 0, SOCKS * 2);
   const tail = header[sock * 2 + 1];
   if (Atomics.load(header, sock * 2) === tail) return false;
@@ -35,7 +35,7 @@ export function take(rings, sock, copy) {
 // Boîte aux lettres à un seul message : longueur en tête, publiée après le texte, remise à 0 par le lecteur une fois copié.
 export const MAILBOX_BYTES = 4 + 1024;
 
-export function post(mailbox, bytes) {
+export function post(mailbox: SharedArrayBuffer, bytes: Uint8Array) {
   const length = new Int32Array(mailbox, 0, 1);
   if (Atomics.load(length, 0)) return false;
   new Uint8Array(mailbox, 4, bytes.length).set(bytes);
@@ -43,7 +43,7 @@ export function post(mailbox, bytes) {
   return true;
 }
 
-export function receive(mailbox, copy) {
+export function receive(mailbox: SharedArrayBuffer, copy: (text: Uint8Array) => void) {
   const length = new Int32Array(mailbox, 0, 1);
   const count = Atomics.load(length, 0);
   if (!count) return false;

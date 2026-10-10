@@ -21,7 +21,7 @@ const PREFIX = TRIMMED ? `/${TRIMMED}/` : '/';
 const ICE_SERVERS = JSON.parse(process.env.ICE_SERVERS ?? '[{"urls":"stun:stun.l.google.com:19302"}]');
 const ROOT = path.join(import.meta.dirname, '..');
 const OVERRIDES = path.join(ROOT, 'overrides');
-const WEB = path.join(ROOT, 'web');
+const DIST = path.join(ROOT, 'dist');
 const TELEMETRY = path.join(ROOT, 'telemetry');
 // Sans isolation cross-origin, pas de SharedArrayBuffer : les pthreads du moteur ne démarrent pas.
 const ISOLATION = {
@@ -33,9 +33,9 @@ const ISOLATION = {
 const app = fastify();
 // Une trame WebSocket porte au plus un datagramme UDP (65 507 octets) et son en-tête de 6 octets.
 await app.register(fastifyWebsocket, { options: { maxPayload: 64 * 1024 } });
-// Le moteur patché par le build (overrides/) passe avant le site (web/).
+// Le moteur patché par le build (overrides/) passe avant le site compilé (dist/, npm run build).
 await app.register(fastifyStatic, {
-  root: [path.join(OVERRIDES, 'bo1z'), WEB], prefix: PREFIX,
+  root: [path.join(OVERRIDES, 'bo1z'), DIST], prefix: PREFIX,
   setHeaders: reply => { reply.headers(ISOLATION); },
 });
 app.removeAllContentTypeParsers();

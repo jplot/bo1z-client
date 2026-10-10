@@ -1,39 +1,46 @@
-import { MAILBOX_BYTES, post, push, receive, RING_BYTES, SLOT_DATA, SOCKS, take } from './ring.js';
+import { MAILBOX_BYTES, post, push, receive, RING_BYTES, SLOT_DATA, SOCKS, take } from './ring.ts';
 
 // Chargé par la page et par chaque pthread : les pthreads n'ont pas de boucle d'événements fiable pendant la partie,
 // donc la page tient le WebSocket et dépose les paquets reçus dans une mémoire partagée qu'ils lisent à chaque frame.
 const NA_IP = 4;
 const DEFAULT_PORT = 3074;
 
-let memory = null;
-let transport = null;
-let stats = null;
-let rings = null;
-let mailbox = null;
-let multi = null;
-export let shared = null;
-const pendingCommands = [];
+type Shared = { rings: SharedArrayBuffer; mailbox: SharedArrayBuffer; multi: SharedArrayBuffer };
+type Transport = (packet: Uint8Array<ArrayBuffer>) => boolean;
+type Message =
+  | { type: 'welcome'; you: string; iceServers: RTCIceServer[] }
+  | { type: 'signal'; from: string; data: { description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit; relay?: 'hello' | 'ack' } }
+  | { type: 'leave'; label: string };
 
-function cString(heap, pointer) {
+let memory: WebAssembly.Memory;
+let transport: Transport;
+let stats: NonNullable<typeof globalThis.kbnet>;
+let rings: SharedArrayBuffer;
+let mailbox: SharedArrayBuffer;
+let multi: SharedArrayBuffer;
+export let shared: Shared | null = null;
+const pendingCommands: string[] = [];
+
+function cString(heap: Uint8Array, pointer: number) {
   return new TextDecoder().decode(heap.slice(pointer, heap.indexOf(0, pointer)));
 }
 
-export function attach(wasmMemory, page) {
+export function attach(wasmMemory: WebAssembly.Memory, page: Shared) {
   memory = wasmMemory;
   ({ rings, mailbox, multi } = page);
 }
 
 // Datagramme : 4 octets d'IPv4 et 2 de port big-endian (lus tels quels dans netadr_t), sock émetteur, données.
-export function send(sock, length, data, adr) {
+export function send(sock: number, length: number, data: number, adr: number) {
   const heap = new Uint8Array(memory.buffer);
   const packet = new Uint8Array(7 + length);
   packet.set(heap.subarray(adr + 4, adr + 10));
   packet[6] = sock;
   packet.set(heap.subarray(data, data + length), 7);
-  postMessage({ kbnet: packet }, [packet.buffer]);
+  (postMessage as (message: unknown, transfer: Transferable[]) => void)({ kbnet: packet }, [packet.buffer]);
 }
 
-export function recv(sock, from, msg) {
+export function recv(sock: number, from: number, msg: number) {
   if (sock >= SOCKS) return 0;
   return Number(take(rings, sock, (address, data) => {
     const view = new DataView(memory.buffer);
@@ -46,7 +53,7 @@ export function recv(sock, from, msg) {
   }));
 }
 
-export function resolve(host, port, adr) {
+export function resolve(host: number, port: number, adr: number) {
   const heap = new Uint8Array(memory.buffer);
   const ip = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(cString(heap, host))?.slice(1).map(Number);
   if (!ip || ip.some(part => part > 255)) return 0;
@@ -57,7 +64,7 @@ export function resolve(host, port, adr) {
   return 1;
 }
 
-export function nextCommand(buffer, size) {
+export function nextCommand(buffer: number, size: number) {
   return Number(receive(mailbox, text => {
     const heap = new Uint8Array(memory.buffer);
     const count = Math.min(text.length, size - 1);
@@ -79,24 +86,24 @@ function markMultiplayer() {
   Atomics.store(new Int32Array(multi), 0, 1);
 }
 
-export function command(text) {
+export function command(text: string) {
   pendingCommands.push(text);
 }
 
-export function forward(packet) {
+export function forward(packet: Uint8Array<ArrayBuffer>) {
   if (!transport(packet)) return stats.dropped++;
   stats.sent++;
 }
 
 // Le serveur reçoit sur NS_SERVER ce qu'un client émet depuis NS_CLIENT1, et inversement.
-function deliver(datagram) {
+function deliver(datagram: Uint8Array) {
   markMultiplayer();
   const sock = datagram[6] ^ 1;
   const queued = sock < SOCKS && datagram.length - 7 <= SLOT_DATA && push(rings, sock, datagram.subarray(0, 6), datagram.subarray(7));
   stats[queued ? 'received' : 'dropped']++;
 }
 
-const socketUrl = (pathname, query = {}) => {
+const socketUrl = (pathname: string, query: Record<string, string> = {}) => {
   const url = new URL(pathname, location.href);
   url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
@@ -104,7 +111,7 @@ const socketUrl = (pathname, query = {}) => {
 };
 
 // Rejoindre depuis une partie locale chargée : la connexion directe au démarrage lit l'état initial de travers.
-function whenPlaying(ready, ...texts) {
+function whenPlaying(ready: () => boolean | undefined, ...texts: string[]) {
   const waiting = setInterval(() => {
     if (globalThis.five?.screen !== 'playing' || !ready()) return;
     clearInterval(waiting);
@@ -120,9 +127,9 @@ function pseudo() {
     return '';
   }
 }
-const named = (...texts) => [...(pseudo() ? [`name ${pseudo()}`] : []), ...texts];
+const named = (...texts: string[]) => [...(pseudo() ? [`name ${pseudo()}`] : []), ...texts];
 
-function relay() {
+function relay(): Transport {
   const socket = new WebSocket(socketUrl('/kbnet'));
   socket.binaryType = 'arraybuffer';
   socket.onmessage = ({ data }) => deliver(new Uint8Array(data));
@@ -135,15 +142,15 @@ const HOST_LABEL = '10.0.0.1';
 // Une liaison directe s'ouvre en une seconde environ : au-delà, l'invité passe par le relais du serveur (/signal).
 const RELAY_AFTER = 5000;
 
-function room(name, hidden) {
-  const signal = new WebSocket(socketUrl('/signal', { room: name, map: location.pathname.split('/').filter(Boolean).pop(), player: pseudo(), ...(hidden && { private: '1' }) }));
-  const peers = new Map();
-  let iceServers = [];
+function room(name: string, hidden: boolean): Transport {
+  const signal = new WebSocket(socketUrl('/signal', { room: name, map: location.pathname.split('/').filter(Boolean).pop()!, player: pseudo(), ...(hidden && { private: '1' }) }));
+  const peers = new Map<string, { connection: RTCPeerConnection; channel: RTCDataChannel | null; candidates: RTCIceCandidateInit[]; relay: boolean }>();
+  let iceServers: RTCIceServer[] = [];
   let queue = Promise.resolve();
-  const tell = (to, data) => signal.send(JSON.stringify({ to, data }));
+  const tell = (to: string, data: unknown) => signal.send(JSON.stringify({ to, data }));
   signal.binaryType = 'arraybuffer';
 
-  function receive(label, payload) {
+  function receive(label: string, payload: Uint8Array) {
     const datagram = new Uint8Array(6 + payload.byteLength);
     datagram.set(label.split('.').map(Number));
     new DataView(datagram.buffer).setUint16(4, DEFAULT_PORT);
@@ -157,14 +164,14 @@ function room(name, hidden) {
     tell(HOST_LABEL, { relay: 'hello' });
   }
 
-  function attach(label, channel) {
+  function attach(label: string, channel: RTCDataChannel) {
     channel.binaryType = 'arraybuffer';
     channel.onopen = () => { stats.linked = true; stats.relayed = false; };
     channel.onmessage = ({ data }) => receive(label, new Uint8Array(data));
-    peers.get(label).channel = channel;
+    peers.get(label)!.channel = channel;
   }
 
-  function peer(label) {
+  function peer(label: string) {
     if (!peers.has(label)) {
       const connection = new RTCPeerConnection({ iceServers });
       connection.onicecandidate = ({ candidate }) => candidate && tell(label, { candidate });
@@ -172,10 +179,10 @@ function room(name, hidden) {
       connection.onconnectionstatechange = () => { if (label === HOST_LABEL && connection.connectionState === 'failed') askRelay(); };
       peers.set(label, { connection, channel: null, candidates: [], relay: false });
     }
-    return peers.get(label);
+    return peers.get(label)!;
   }
 
-  async function handle(message) {
+  async function handle(message: Message) {
     if (message.type === 'welcome') {
       iceServers = message.iceServers;
       stats.label = message.you;
@@ -197,9 +204,9 @@ function room(name, hidden) {
       }
       if (candidate && !entry.connection.remoteDescription) return void entry.candidates.push(candidate);
       if (candidate) return entry.connection.addIceCandidate(candidate);
-      await entry.connection.setRemoteDescription(description);
+      await entry.connection.setRemoteDescription(description!);
       for (const pending of entry.candidates.splice(0)) await entry.connection.addIceCandidate(pending);
-      if (description.type !== 'offer') return;
+      if (description!.type !== 'offer') return;
       await entry.connection.setLocalDescription();
       tell(message.from, { description: entry.connection.localDescription });
     } else if (message.type === 'leave') {
@@ -237,7 +244,7 @@ if (!globalThis.WorkerGlobalScope) {
   setInterval(postCommands, 50);
   const query = new URLSearchParams(location.search);
   if (query.get('room') || query.get('connect')) markMultiplayer();
-  if (query.get('room')) transport = room(query.get('room'), query.get('private') === '1');
+  if (query.get('room')) transport = room(query.get('room')!, query.get('private') === '1');
   else {
     transport = relay();
     whenPlaying(() => true, ...named(...(query.get('connect') ? [`connect ${query.get('connect')}`] : [])));

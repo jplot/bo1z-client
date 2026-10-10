@@ -8,30 +8,34 @@
 // A small corner box (pointer-events: none, so it never takes input) refreshes twice a second, and
 // window.__perfStats holds the same numbers plus one summary per 5 s window (last 10 min) and session totals.
 const WINDOW_MS = 5000, UPDATE_MS = 500, HISTORY = 120, GRAPH_MS = 4000;
-const RENDERERS = { webgpu: 'WebGPU', 'webgpu-pipeline': 'WebGPU', webgl2: 'WebGL 2' };
+const RENDERERS: Record<string, string> = { webgpu: 'WebGPU', 'webgpu-pipeline': 'WebGPU', webgl2: 'WebGL 2' };
+type Sample = { t: number; ms: number };
+type Frames = { lost: number; intervals: ArrayLike<number>; times: ArrayLike<number> };
+type Summary = ReturnType<typeof summarize>;
+type View = { present: Summary & { sinceLastMs: number | null }; raf: Summary; longTasks: { busyPct: number } | null; totals: { over33: number }; renderer: string | null };
 const now = () => performance.timeOrigin + performance.now(); // epoch ms, the clock of the present ring
 
-function summarize(samples, windowMs) {
+function summarize(samples: Sample[], windowMs: number) {
   const n = samples.length;
   if (!n) return { frames: 0, fps: 0, p50Ms: null, p95Ms: null, p99Ms: null, maxMs: null, over33: 0, over100: 0 };
   const sorted = Float64Array.from(samples, s => s.ms).sort();
-  const pick = q => +sorted[Math.min(n - 1, Math.floor(q * n))].toFixed(1);
+  const pick = (q: number) => +sorted[Math.min(n - 1, Math.floor(q * n))].toFixed(1);
   let over33 = 0, over100 = 0;
   for (const s of samples) { if (s.ms > 33) over33++; if (s.ms > 100) over100++; }
   return { frames: n, fps: +(n * 1000 / windowMs).toFixed(1), p50Ms: pick(0.5), p95Ms: pick(0.95), p99Ms: pick(0.99),
     maxMs: +sorted[n - 1].toFixed(1), over33, over100 };
 }
-function prune(list, from) { let i = 0; while (i < list.length && list[i].t < from) i++; if (i) list.splice(0, i); }
+function prune(list: Sample[], from: number) { let i = 0; while (i < list.length && list[i].t < from) i++; if (i) list.splice(0, i); }
 
 export function startPerfOverlay() {
   if (globalThis.__perfOverlay) return globalThis.__perfOverlay;
-  const presents = [], rafs = [], longTasks = [];
+  const presents: Sample[] = [], rafs: Sample[] = [], longTasks: Sample[] = [];
   const totals = { since: new Date().toISOString(), presents: 0, over33: 0, over100: 0, maxMs: 0, lost: 0,
     longTasks: 0, longTaskMs: 0 };
-  const history = [];
-  let reader = null, readerEngine = null, lastRaf = 0, lastPresent = 0, windowStart = now(), windowPresents = [], stopped = false, observer = null;
+  const history: object[] = [];
+  let reader: (() => Frames | null) | null = null, readerEngine: unknown = null, lastRaf = 0, lastPresent = 0, windowStart = now(), windowPresents: Sample[] = [], stopped = false, observer: PerformanceObserver | null = null;
 
-  const rafTick = t => {
+  const rafTick = (t: number) => {
     if (stopped) return;
     if (lastRaf && document.visibilityState === 'visible') rafs.push({ t: performance.timeOrigin + t, ms: t - lastRaf });
     lastRaf = t; requestAnimationFrame(rafTick);
@@ -91,8 +95,9 @@ export function startPerfOverlay() {
     </div>
   </div>
   <div class="row bad" data-k="stall"></div>`;
-  const el = Object.fromEntries([...box.querySelectorAll('[data-k]')].map(node => [node.dataset.k, node]));
-  let mode = 'compact', netPrev = null;
+  const el = Object.fromEntries([...box.querySelectorAll<HTMLElement>('[data-k]')].map(node => [node.dataset.k!, node]));
+  const graph = el.graph as HTMLCanvasElement;
+  let mode = 'compact', netPrev: { t: number; sent: number; received: number } | null = null;
 
   function drain() {
     const engine = globalThis.five?.engine;
@@ -136,18 +141,18 @@ export function startPerfOverlay() {
     globalThis.__perfStats = stats;
     render(stats);
   }
-  const num = (v, digits = 1) => (v === null || v === undefined ? '–' : Number(v).toFixed(digits).replace('.', ','));
-  const tone = fps => (fps >= 55 ? 'good' : fps >= 30 ? 'warn' : 'bad');
-  const set = (key, text, className) => { el[key].textContent = text; if (className !== undefined) el[key].className = className; };
+  const num = (v: number | null | undefined, digits = 1) => (v === null || v === undefined ? '–' : Number(v).toFixed(digits).replace('.', ','));
+  const tone = (fps: number) => (fps >= 55 ? 'good' : fps >= 30 ? 'warn' : 'bad');
+  const set = (key: string, text: string | number, className?: string) => { el[key].textContent = String(text); if (className !== undefined) el[key].className = className; };
   function draw() {
-    const dpr = devicePixelRatio || 1, g = el.graph.getContext('2d'), w = el.graph.width / dpr, h = el.graph.height / dpr;
+    const dpr = devicePixelRatio || 1, g = graph.getContext('2d')!, w = graph.width / dpr, h = graph.height / dpr;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, w, h);
-    const y = ms => h - Math.min(1, ms / 40) * h;
+    const y = (ms: number) => h - Math.min(1, ms / 40) * h;
     g.strokeStyle = 'rgba(255,240,220,.18)'; g.lineWidth = 1; g.setLineDash([3, 3]);
     for (const ms of [16.7, 33.3]) { const line = Math.round(y(ms)) + 0.5; g.beginPath(); g.moveTo(0, line); g.lineTo(w, line); g.stroke(); }
     g.setLineDash([]);
-    const from = now() - GRAPH_MS, recent = presents.filter(f => f.t >= from), x = f => (f.t - from) / GRAPH_MS * w;
+    const from = now() - GRAPH_MS, recent = presents.filter(f => f.t >= from), x = (f: Sample) => (f.t - from) / GRAPH_MS * w;
     if (recent.length > 1) {
       g.beginPath();
       recent.forEach((f, i) => (i ? g.lineTo(x(f), y(f.ms)) : g.moveTo(x(f), y(f.ms))));
@@ -160,8 +165,8 @@ export function startPerfOverlay() {
   function renderNet() {
     const kb = globalThis.kbnet, query = new URLSearchParams(location.search), room = query.get('room');
     el.net.hidden = !(kb && room);
-    if (el.net.hidden) return;
-    const t = now(), rate = key => (netPrev ? Math.round((kb[key] - netPrev[key]) * 1000 / (t - netPrev.t)) : 0);
+    if (!kb || !room) return;
+    const t = now(), rate = (key: 'sent' | 'received') => (netPrev ? Math.round((kb[key] - netPrev[key]) * 1000 / (t - netPrev.t)) : 0);
     set('sent', rate('sent')); set('recv', rate('received')); set('lost', kb.dropped, kb.dropped ? 'warn' : '');
     netPrev = { t, sent: kb.sent, received: kb.received };
     set('room', `Salon${query.get('private') === '1' ? ' privé' : ''} ${room}`);
@@ -169,35 +174,35 @@ export function startPerfOverlay() {
       : kb.linked ? ['liaison directe', 'good'] : ['liaison en cours', 'warn'];
     set('link', text, `dot ${color}`);
   }
-  function render(s) {
+  function render(s: View) {
     if (!box.isConnected) (document.body ?? document.documentElement).append(box); // landing replaces <body>
     const p = s.present, r = s.raf, state = globalThis.five, engine = state?.engine;
     set('fps', p.frames ? Math.round(p.fps) : '–', tone(p.fps));
     set('ms', `${num(p.p50Ms)} ms`);
     set('p95', `${num(p.p95Ms)} ms`); set('hitch', p.over33, p.over33 ? 'warn' : '');
-    el.stall.hidden = !(p.sinceLastMs > 250);
-    el.stall.textContent = `aucune image depuis ${num(p.sinceLastMs / 1000)} s`;
+    el.stall.hidden = !((p.sinceLastMs ?? 0) > 250);
+    el.stall.textContent = `aucune image depuis ${num((p.sinceLastMs ?? 0) / 1000)} s`;
     draw();
     if (mode !== 'detail') return;
     set('p50', `${num(p.p50Ms)} ms`); set('p95d', `${num(p.p95Ms)} ms`);
     set('low', p.p99Ms ? `${Math.round(1000 / p.p99Ms)} FPS` : '–'); set('max', `${num(p.maxMs)} ms`);
     set('h33', p.over33, p.over33 ? 'warn' : ''); set('h100', p.over100, p.over100 ? 'bad' : '');
     set('total', `${s.totals.over33} saccade${s.totals.over33 > 1 ? 's' : ''}`);
-    set('renderer', RENDERERS[s.renderer] ?? s.renderer ?? '–');
+    set('renderer', RENDERERS[s.renderer ?? ''] ?? s.renderer ?? '–');
     set('size', state?.canvas ? `${state.canvas.width} × ${state.canvas.height}` : '–');
     const memory = engine?.telemetryMemory?.();
     set('mem', memory ? `${num((memory.wasmBreak ?? memory.wasmBytes) / 2 ** 30, 2)} / ${num(memory.wasmBytes / 2 ** 30, 2)} Go` : '–');
     set('page', r.frames ? Math.round(r.fps) : '–'); set('busy', s.longTasks ? `${num(s.longTasks.busyPct, 0)} %` : '–');
-    let audio = null;
+    let audio: { underruns?: number } | null = null;
     try { audio = engine?.audioSnapshot?.(); } catch { /* engine stopped */ }
     set('under', audio?.underruns ?? '–', audio?.underruns ? 'warn' : '');
     renderNet();
   }
-  function setMode(next) {
+  function setMode(next: string) {
     mode = next; box.className = mode; netPrev = null;
     const dpr = devicePixelRatio || 1, [w, h] = mode === 'detail' ? [294, 54] : [212, 34];
-    Object.assign(el.graph, { width: w * dpr, height: h * dpr });
-    Object.assign(el.graph.style, { width: `${w}px`, height: `${h}px` });
+    Object.assign(graph, { width: w * dpr, height: h * dpr });
+    Object.assign(graph.style, { width: `${w}px`, height: `${h}px` });
     update();
   }
   const started = now();

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { isMainThread, parentPort, Worker, workerData } from 'node:worker_threads';
-import { MAILBOX_BYTES, post, push, receive, RING_BYTES, SOCKS, take } from '../web/ring.js';
+import { MAILBOX_BYTES, post, push, receive, RING_BYTES, SOCKS, take } from '../client/ring.ts';
 
 const PACKETS = 100_000;
 const packet = (sock, seq) => {
