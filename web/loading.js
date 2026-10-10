@@ -22,7 +22,7 @@ const root = document.createElement('section');
 root.className = 'kb-loading';
 root.setAttribute('aria-live', 'polite');
 root.innerHTML = `<div class="kb-art"></div><div class="kb-veil"></div>
-  <a class="kb-back" href="/bo1z">Annuler</a>
+  <a class="kb-back" href="/">Annuler</a>
   <div class="kb-box">
     <div class="kb-kicker"></div><h2 class="kb-name"></h2><div class="kb-party"></div>
     <div class="kb-status"><i></i><span></span><small></small></div><div class="kb-timeline"></div>
@@ -30,7 +30,7 @@ root.innerHTML = `<div class="kb-art"></div><div class="kb-veil"></div>
     <p class="kb-note" hidden><b>La souris n’a pas pu être capturée.</b> Clique encore une fois sur l’écran.</p>
     <div class="kb-error" hidden>
       <h3><span class="kb-warn">!</span><span class="kb-error-title"></span></h3><p class="kb-error-text"></p><p class="kb-error-hint"></p>
-      <div class="kb-error-actions"><button class="kb-primary" type="button"></button><button class="kb-secondary kb-copy" type="button">Copier le rapport</button><a class="kb-secondary" href="/bo1z">Retour au menu</a></div>
+      <div class="kb-error-actions"><button class="kb-primary" type="button"></button><button class="kb-secondary kb-copy" type="button">Copier le rapport</button><a class="kb-secondary" href="/">Retour au menu</a></div>
       <details class="kb-details"><summary>Détails</summary><pre></pre></details>
     </div>
   </div>
@@ -226,7 +226,7 @@ if (roomName) party();
 document.addEventListener('keydown', event => {
   if (root.classList.contains('kb-gone')) return;
   const screen = document.body.dataset.screen;
-  if (event.key === 'Escape' && (failed || screen !== 'playing')) return location.assign('/bo1z');
+  if (event.key === 'Escape' && (failed || screen !== 'playing')) return location.assign('/');
   // Écouteur posé avant celui de play.js : il retient la touche qui ferait entrer sans liaison, ou derrière une erreur.
   if (failed || (screen === 'ready' && linkPending())) { event.preventDefault(); event.stopImmediatePropagation(); }
 });

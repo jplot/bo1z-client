@@ -44,12 +44,14 @@ test('une page d’une autre origine ne peut pas entrer dans un salon', async t 
   assert.equal(event.type, 'error');
 });
 
-test('la racine mène au menu et /rooms liste les salons avec leur carte et les pseudos de leurs joueurs', async t => {
+test('les anciennes adresses en /bo1z mènent à la même page sans le préfixe, et /rooms liste les salons avec leur carte et les pseudos de leurs joueurs', async t => {
   const child = await relay(8614, 0);
   t.after(() => child.kill());
-  const root = await fetch('http://127.0.0.1:8614/?room=soiree', { redirect: 'manual' });
-  assert.equal(root.status, 302);
-  assert.equal(root.headers.get('location'), '/bo1z?room=soiree');
+  for (const [old, now] of [['/bo1z?room=soiree', '/?room=soiree'], ['/bo1z/', '/'], ['/bo1z/nacht?room=soiree', '/nacht?room=soiree']]) {
+    const response = await fetch(`http://127.0.0.1:8614${old}`, { redirect: 'manual' });
+    assert.equal(response.status, 301);
+    assert.equal(response.headers.get('location'), now);
+  }
   const host = join(8614, 'soiree', undefined, 'kino', 'Hote');
   await host.next();
   const guest = join(8614, 'soiree', undefined, 'nacht', 'Invite');

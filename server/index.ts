@@ -31,9 +31,9 @@ const ISOLATION = {
 const app = fastify();
 // Une trame WebSocket porte au plus un datagramme UDP (65 507 octets) et son en-tête de 6 octets.
 await app.register(fastifyWebsocket, { options: { maxPayload: 64 * 1024 } });
-// Le moteur patché par le build (overrides/) passe avant le site (web/, servi sous /bo1z/).
+// Le moteur patché par le build (overrides/) passe avant le site (web/).
 await app.register(fastifyStatic, {
-  root: [path.join(OVERRIDES, 'bo1z'), WEB], prefix: '/bo1z/',
+  root: [path.join(OVERRIDES, 'bo1z'), WEB],
   setHeaders: reply => { reply.headers(ISOLATION); },
 });
 app.removeAllContentTypeParsers();
@@ -51,7 +51,7 @@ const LOOPBACK = new BlockList();
 LOOPBACK.addSubnet('127.0.0.0', 8, 'ipv4');
 LOOPBACK.addAddress('::1', 'ipv6');
 app.route({
-  method: ['GET', 'POST'], url: '/bo1z/telemetry',
+  method: ['GET', 'POST'], url: '/telemetry',
   handler: async (request, reply) => {
     const address = request.socket.remoteAddress ?? '';
     const local = TELEMETRY_ALL || LOOPBACK.check(address, isIPv6(address) ? 'ipv6' : 'ipv4');
@@ -66,8 +66,10 @@ app.route({
 rooms(app, ICE_SERVERS);
 if (NET_PORT) udpBridge(app, PORT, NET_PORT);
 
-app.get('/', async (request, reply) => reply.redirect(`/bo1z${new URL(request.url, 'http://127.0.0.1').search}`, 302));
-app.get('/bo1z', async (_request, reply) => reply.sendFile('index.html', WEB));
+// Les adresses d'avant la mise à la racine (liens de salon partagés compris) mènent à la même page sans /bo1z.
+const unprefixed = async (request: FastifyRequest, reply: FastifyReply) => reply.redirect(`/${request.url.slice('/bo1z'.length).replace(/^\//, '')}`, 301);
+app.get('/bo1z', unprefixed);
+app.get('/bo1z/*', unprefixed);
 
 // Vidéos de chargement (<video>) et reprise d'un fichier entier par download-worker.js : servies depuis le cache, hors ligne compris.
 function byteRange(header: string | undefined, length: number) {
@@ -91,13 +93,15 @@ app.setNotFoundHandler(async (request, reply) => {
   if (request.method !== 'GET' && request.method !== 'HEAD') return reply.code(405).send();
   const page = await mapPage(url.pathname);
   if (page) return serve(request, reply, 200, { 'content-type': 'text/html', 'content-length': Buffer.byteLength(page) }, Readable.from([page]));
+  // Chez vel.gg, et donc dans cache/, tout vit sous /bo1z/.
+  const remote = new URL(`/bo1z${url.pathname}${url.search}`, 'http://127.0.0.1');
   const headers = Object.fromEntries(['user-agent', 'accept-encoding'].filter(name => request.headers[name]).map(name => [name, request.headers[name]]));
   if (!CACHE) {
-    const response = await upstream(url, request.headers.range ? { ...headers, range: request.headers.range } : headers);
+    const response = await upstream(remote, request.headers.range ? { ...headers, range: request.headers.range } : headers);
     return serve(request, reply, response.statusCode!, pick(response.headers), response);
   }
   // Le worker de vel.gg compare Content-Length à la taille attendue des fichiers téléchargés d'un seul bloc.
-  const hit = await cached(url, headers);
+  const hit = await cached(remote, headers);
   if (!('file' in hit)) return serve(request, reply, hit.meta.status, hit.meta.headers, hit.body);
   const range = byteRange(request.headers.range, hit.length);
   if (!range) return serve(request, reply, hit.meta.status, { ...hit.meta.headers, 'content-length': hit.length }, hit.body);
@@ -107,4 +111,4 @@ app.setNotFoundHandler(async (request, reply) => {
 });
 
 await app.listen({ port: PORT, host: HOST });
-console.log(`http://${HOST}:${PORT}/bo1z/`);
+console.log(`http://${HOST}:${PORT}/`);

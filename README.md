@@ -5,7 +5,7 @@ Black Ops Zombies dans le navigateur, à plusieurs. Le point de départ est le p
 ## Organisation
 
 - `server/` (Fastify, TypeScript exécuté tel quel par Node) : le relais (site, salons, pont UDP, cache des données du jeu).
-- `web/` : le site, servi sous `/bo1z` et modifié directement. Le menu (`index.html`, `menu.js`, `menu.css`), la liste de nos cartes (`catalog.mjs`), le gabarit des pages de carte (`map.html`) et leur écran de chargement (`loading.js`, `loading.css`), le réseau (`kbnet.js`, `ring.js`), et le reste du site repris de vel.gg (`play.js`, `engine.js`, `artifacts/KisakBlack-web.mjs`…).
+- `web/` : le site, servi à la racine et modifié directement. Le menu (`index.html`, `menu.js`, `menu.css`), la liste de nos cartes (`catalog.mjs`), le gabarit des pages de carte (`map.html`) et leur écran de chargement (`loading.js`, `loading.css`), le réseau (`kbnet.js`, `ring.js`), et le reste du site repris de vel.gg (`play.js`, `engine.js`, `artifacts/KisakBlack-web.mjs`…).
 - `engine/KisakBlack-web.wasm` : le moteur compilé par vel.gg à partir de KisakBlack (C++, GPL-3.0). Seul fichier qu'on ne peut modifier qu'en le patchant.
 - `patch/` : les patchs du wasm et le réécrivain qui les applique.
 - branche `assets` : les données du jeu (cartes, manifestes, images, caches de shaders, vidéos), voir « Jouer sans vel.gg ».
@@ -17,7 +17,7 @@ node patch/build.mjs   # écrit overrides/bo1z/artifacts/KisakBlack-web.wasm
 node server/index.ts   # port 8484, ou PORT=...
 ```
 
-Puis ouvrir http://127.0.0.1:8484/bo1z dans Chrome.
+Puis ouvrir http://127.0.0.1:8484 dans Chrome.
 
 - Le relais sert d'abord `overrides/` (le moteur patché), puis `web/`, puis les pages de carte rendues depuis `web/map.html`, et enfin les données du jeu depuis `cache/`.
 - `cache/` garde les données du jeu en clair, rangées comme sur vel.gg, sans jamais les rafraîchir ; le relais y découpe à la volée les morceaux `?part=k` que demande le jeu. Ce qui manque est téléchargé chez vel.gg.
@@ -34,17 +34,17 @@ Deux façons de se rejoindre ; dans les deux cas, celui qui rejoint charge d'abo
 
 ### Salon (WebRTC)
 
-Le menu (`/bo1z`, où mène aussi la racine du site) a deux onglets. Solo montre les cartes par jeu, en mosaïque ou en liste, avec le Mode Enfer. Multijoueur liste les salons ouverts : code, carte, pseudos (l'hôte en premier) et places, quatre au plus. REJOINDRE ouvre la carte de l'hôte, REJOINDRE AVEC UN CODE prend les quatre lettres que l'hôte donne. + CRÉER UN SALON fait choisir la carte et tire un code de quatre consonnes encore libre ; SALON PRIVÉ le retire de la liste, on ne le rejoint plus qu'avec son code (`/rooms?code=<code>` le trouve). `/bo1z?room=<code>` ouvre la saisie du code déjà remplie. Le pseudo est retenu par le navigateur et envoyé au jeu (`name`) avant la connexion ; sans pseudo, le serveur renomme les doublons « Unknown Soldier 1 ». Le Mode Enfer ne s'applique qu'en solo pour l'instant.
+Le menu (la racine du site ; les anciennes adresses en `/bo1z/…` y redirigent) a deux onglets. Solo montre les cartes par jeu, en mosaïque ou en liste, avec le Mode Enfer. Multijoueur liste les salons ouverts : code, carte, pseudos (l'hôte en premier) et places, quatre au plus. REJOINDRE ouvre la carte de l'hôte, REJOINDRE AVEC UN CODE prend les quatre lettres que l'hôte donne. + CRÉER UN SALON fait choisir la carte et tire un code de quatre consonnes encore libre ; SALON PRIVÉ le retire de la liste, on ne le rejoint plus qu'avec son code (`/rooms?code=<code>` le trouve). `/bo1z?room=<code>` ouvre la saisie du code déjà remplie. Le pseudo est retenu par le navigateur et envoyé au jeu (`name`) avant la connexion ; sans pseudo, le serveur renomme les doublons « Unknown Soldier 1 ». Le Mode Enfer ne s'applique qu'en solo pour l'instant.
 
 La page de carte lance le téléchargement d'elle-même et affiche les étapes (liaison avec l'hôte, téléchargement, moteur, prêt) avec les pseudos du salon ; le seul geste demandé est le clic qui capture la souris. Chez celui qui rejoint, l'écran reste jusqu'à ce que les instantanés de l'hôte arrivent sans interruption, ce qui cache le chargement de la partie de l'hôte. Les erreurs (liaison impossible, hôte parti, téléchargement interrompu, stockage, navigateur, plantage du moteur) passent par la même page, en français, avec la reprise qui convient.
 
-Sans passer par le menu, tous les joueurs ouvrent la même adresse avec `?room=<nom>`, par exemple `http://127.0.0.1:8484/bo1z/nacht?room=soiree`. Le premier arrivé est l'hôte. Le serveur ne fait que présenter les navigateurs (`/signal`) ; les paquets du jeu passent ensuite directement de l'un à l'autre (sur le réseau local, ils ne quittent pas la box). Le moteur voit les joueurs sous des étiquettes `10.0.0.<n>` (l'hôte est `10.0.0.1`), puisque la page ne connaît pas les vraies adresses. `ICE_SERVERS` (JSON, STUN de Google par défaut) règle les serveurs utilisés pour traverser les box par internet. Si la liaison directe échoue ou n'est pas ouverte au bout de 5 s (box trop strictes, partage 4G, réseau d'entreprise), l'invité passe par le relais du serveur : les paquets suivent la connexion `/signal`, avec un peu plus de latence, et l'écran de chargement montre un point bleu sur l'hôte. Un serveur TURN dans `ICE_SERVERS` reste possible pour garder une liaison sans détour par le serveur.
+Sans passer par le menu, tous les joueurs ouvrent la même adresse avec `?room=<nom>`, par exemple `http://127.0.0.1:8484/nacht?room=soiree`. Le premier arrivé est l'hôte. Le serveur ne fait que présenter les navigateurs (`/signal`) ; les paquets du jeu passent ensuite directement de l'un à l'autre (sur le réseau local, ils ne quittent pas la box). Le moteur voit les joueurs sous des étiquettes `10.0.0.<n>` (l'hôte est `10.0.0.1`), puisque la page ne connaît pas les vraies adresses. `ICE_SERVERS` (JSON, STUN de Google par défaut) règle les serveurs utilisés pour traverser les box par internet. Si la liaison directe échoue ou n'est pas ouverte au bout de 5 s (box trop strictes, partage 4G, réseau d'entreprise), l'invité passe par le relais du serveur : les paquets suivent la connexion `/signal`, avec un peu plus de latence, et l'écran de chargement montre un point bleu sur l'hôte. Un serveur TURN dans `ICE_SERVERS` reste possible pour garder une liaison sans détour par le serveur.
 
 ### Relais UDP (vraies adresses IP)
 
 - Chaque joueur lance son relais et ouvre la carte sur son propre `127.0.0.1`.
-- L'hôte joue normalement. Les autres ajoutent `?connect=<ip de l'hôte>` à l'URL de la carte, par exemple `http://127.0.0.1:8484/bo1z/nacht?connect=192.168.1.20` : la carte se charge d'abord en local, puis la page envoie `connect` dès que la partie démarre.
-- Sur un seul Mac, le second joueur lance `PORT=8485 NET_PORT=3075 node server/index.ts` et ouvre `http://127.0.0.1:8485/bo1z/nacht?connect=127.0.0.1:3074`.
+- L'hôte joue normalement. Les autres ajoutent `?connect=<ip de l'hôte>` à l'URL de la carte, par exemple `http://127.0.0.1:8484/nacht?connect=192.168.1.20` : la carte se charge d'abord en local, puis la page envoie `connect` dès que la partie démarre.
+- Sur un seul Mac, le second joueur lance `PORT=8485 NET_PORT=3075 node server/index.ts` et ouvre `http://127.0.0.1:8485/nacht?connect=127.0.0.1:3074`.
 - `kbnet` dans la console de la page donne les paquets envoyés, reçus et perdus ; `kbnet.command('connect 192.168.1.20')` envoie une commande à la console du jeu.
 
 ## Jouer sans vel.gg

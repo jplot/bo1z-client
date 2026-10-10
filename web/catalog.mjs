@@ -1,5 +1,5 @@
 // size : Go téléchargés depuis vel.gg au premier lancement (morceaux Brotli des manifestes du 2026-10-09).
-// first : Five garde les adresses racine de vel.gg (/bo1z/manifest.json, /bo1z/pack/).
+// first : Five garde les adresses racine du site (/manifest.json, /pack/, soit /bo1z/… chez vel.gg).
 export const MAPS = [
   { era: 'World at War', slug: 'nacht', zone: 'zombie_cod5_prototype', name: 'Nacht der Untoten', place: 'Un bunker abandonné', size: 0.28, horde: true,
     desc: 'L’originale : tenir dans un petit bunker face à des vagues sans fin.' },

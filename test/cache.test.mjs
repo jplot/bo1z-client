@@ -4,7 +4,7 @@ import path from 'node:path';
 import test, { after, before } from 'node:test';
 import { relay } from './relay.mjs';
 
-const DIR = path.join(new URL('..', import.meta.url).pathname, 'cache', 'kbnet-test');
+const DIR = path.join(new URL('..', import.meta.url).pathname, 'cache', 'bo1z', 'kbnet-test');
 const URL_PATH = 'http://127.0.0.1:8615/kbnet-test/whole.iwd';
 const TAIL = Buffer.alloc(1_000, 3);
 let child;

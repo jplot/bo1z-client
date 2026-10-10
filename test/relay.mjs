@@ -11,7 +11,7 @@ export function relay(httpPort, udpPort, env = {}) {
     let output = '';
     child.stdout.on('data', chunk => {
       output += chunk;
-      if ((!udpPort || output.includes(`UDP ${udpPort} :`)) && output.includes(`:${httpPort}/bo1z/`)) resolve(child);
+      if ((!udpPort || output.includes(`UDP ${udpPort} :`)) && output.includes(`:${httpPort}/`)) resolve(child);
     });
     child.on('exit', code => reject(new Error(`relais ${httpPort} arrêté (${code})`)));
   });

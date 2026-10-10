@@ -7,10 +7,10 @@ async function room(name, map, player, extra = '') {
   await new Promise(resolve => { socket.onmessage = resolve; });
   sockets.push(socket);
 }
-const blankMapPages = page => page.route(/\/bo1z\/[a-z]+\?room=/, route => route.fulfill({ contentType: 'text/html', body: '' }));
+const blankMapPages = page => page.route(/\/[a-z]+\?room=/, route => route.fulfill({ contentType: 'text/html', body: '' }));
 
 test('Solo : les dix cartes, le Mode Enfer grise les quatre sans mode horde, la vue liste', async ({ page }) => {
-  await page.goto('/bo1z');
+  await page.goto('/');
   await expect(page.locator('.mapc')).toHaveCount(10);
   await page.click('#hell');
   await expect(page.locator('.mapc.off')).toHaveCount(4);
@@ -23,7 +23,7 @@ test('Solo : les dix cartes, le Mode Enfer grise les quatre sans mode horde, la 
 test('Multijoueur : les salons publics avec leurs joueurs, jamais les privés', async ({ page }) => {
   await room('KXQZ', 'moon', 'Thomas');
   await room('MZTR', 'cotd', 'Ines', '&private=1');
-  await page.goto('/bo1z');
+  await page.goto('/');
   await page.click('#tab-multi');
   await expect(page.locator('.rlist .line')).toHaveCount(1);
   await expect(page.locator('.rlist .line')).toContainText(['KXQZ']);
@@ -34,7 +34,7 @@ test('Multijoueur : les salons publics avec leurs joueurs, jamais les privés', 
 test('Rejoindre avec un code : un code inconnu le dit, celui d’un salon privé ouvre sa carte', async ({ page }) => {
   await room('MZTR', 'cotd', 'Ines', '&private=1');
   await blankMapPages(page);
-  await page.goto('/bo1z');
+  await page.goto('/');
   await page.click('#tab-multi');
   await page.click('#open-code');
   await page.keyboard.type('BRTM');
@@ -43,24 +43,24 @@ test('Rejoindre avec un code : un code inconnu le dit, celui d’un salon privé
   for (let k = 0; k < 4; k++) await page.keyboard.press('Backspace');
   await page.keyboard.type('MZTR');
   await expect(page.locator('#join-code')).toBeEnabled();
-  const request = page.waitForRequest(/\/bo1z\/cotd\?/);
+  const request = page.waitForRequest(/\/cotd\?/);
   await page.click('#join-code');
   expect(new URL((await request).url()).search).toBe('?room=MZTR&private=1');
 });
 
 test('Créer un salon : la carte choisie ouvre un code de quatre consonnes, privé si l’interrupteur est mis', async ({ page }) => {
   await blankMapPages(page);
-  await page.goto('/bo1z');
+  await page.goto('/');
   await page.click('#tab-multi');
   await page.click('#create');
   await page.click('#private');
-  const request = page.waitForRequest(/\/bo1z\/[a-z]+\?room=/);
+  const request = page.waitForRequest(/\/[a-z]+\?room=/);
   await page.locator('.mapc').first().click();
   expect(new URL((await request).url()).search).toMatch(/^\?room=[BCDFGHJKLMNPQRSTVWXZ]{4}&private=1$/);
 });
 
 test('Options : la sensibilité réglée est gardée pour les pages de carte', async ({ page }) => {
-  await page.goto('/bo1z');
+  await page.goto('/');
   await page.click('#open-options');
   await page.locator('#o-sens').fill('2.5');
   expect(JSON.parse(await page.evaluate(() => localStorage.getItem('bo1z-settings'))).sensitivity).toBe(2.5);
