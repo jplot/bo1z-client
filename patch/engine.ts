@@ -220,7 +220,15 @@ function patches(module: Module) {
     add(site.index, { at: site.list[r].at, end: site.list[r].end, bytes: [0x1a, ...i32(0)] });
   }
 
-  // Fatal assertions a lobby still triggers: the host's attachedVehEntNum != 0 for a guest one server frame after connect (1 Moon join in 9).
+  // A joining client's attachedVehEntNum stayed 0 until its first ClientEndFrame (11 to 23 ms): a host's snapshot then asserted (1 Moon join in 9).
+  const spawn = find(module, 'ClientSpawn(gentity_s*, float const*, float const*)', (list, k) => list[k].op === 0x41 && list[k].value === 1023
+    && list[k + 1]?.op === 0x36 && list[k + 4]?.op === 0x36, 1);
+  const [vehicleAt, indexAt] = [spawn.list[spawn.found[0] + 1].offset!, spawn.list[spawn.found[0] + 4].offset!];
+  const joining = find(module, 'ClientConnect(unsigned int, unsigned int)', (list, k) => list[k].op === 0x36 && list[k].offset === indexAt, 1);
+  const [j] = joining.found;
+  add(joining.index, { at: joining.list[j].end, end: joining.list[j].end, bytes: [...get(joining.list[j - 2].index!), ...i32(1023), 0x36, 0x02, ...leb(vehicleAt)] });
+
+  // Fatal assertions: none known left in a lobby, kept until its games over, downs and revives have run without it.
   const asserts = find(module, 'Assert_MyHandler(char const*, int, int, char const*, ...)', (list, k) => list[k].op === 0x00 && list[k + 1]?.op === 0x0b && k + 2 === list.length, 1);
   const frameSize = asserts.list.find(ins => ins.op === 0x41)!.value!;
   const frameBase = asserts.list.find(ins => ins.op === 0x22)!.index!;
