@@ -228,6 +228,16 @@ function patches(module: Module) {
   const [j] = joining.found;
   add(joining.index, { at: joining.list[j].end, end: joining.list[j].end, bytes: [...get(joining.list[j - 2].index!), ...i32(1023), 0x36, 0x02, ...leb(vehicleAt)] });
 
+  // A zone's sound patches applied under SOUND_BANK took SOUND_LOOKUP_CACHE, SND_FindAliasId's order reversed: a guest's CG_Init
+  // runs while its map loads, and both threads waited on each other for good (1 Moon load in 4). The lookup takes SOUND_BANK itself.
+  const enterAt = module.names.get('Sys_EnterCriticalSectionAt(CriticalSection, char const*, int)');
+  const aliasLookup = module.names.get('SND_BankAliasLookup(unsigned int)');
+  const patchLock = find(module, 'SND_PatchApply(SndPatch const*)', (list, k) => list[k].op === 0x41 && list[k + 3]?.op === 0x10
+    && list[k + 3].index === enterAt && list[k + 5]?.index === aliasLookup && list[k + 6]?.value === list[k].value, 1);
+  const [p] = patchLock.found;
+  add(patchLock.index, { at: patchLock.list[p].at, end: patchLock.list[p + 4].at, bytes: [] });
+  add(patchLock.index, { at: patchLock.list[p + 6].at, end: patchLock.list[p + 8].at, bytes: [] });
+
   // Fatal assertions: none known left in a lobby, kept until its games over, downs and revives have run without it.
   const asserts = find(module, 'Assert_MyHandler(char const*, int, int, char const*, ...)', (list, k) => list[k].op === 0x00 && list[k + 1]?.op === 0x0b && k + 2 === list.length, 1);
   const frameSize = asserts.list.find(ins => ins.op === 0x41)!.value!;
