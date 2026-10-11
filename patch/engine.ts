@@ -238,13 +238,6 @@ function patches(module: Module) {
   add(patchLock.index, { at: patchLock.list[p].at, end: patchLock.list[p + 4].at, bytes: [] });
   add(patchLock.index, { at: patchLock.list[p + 6].at, end: patchLock.list[p + 8].at, bytes: [] });
 
-  // Fatal assertions: none known left in a lobby, kept until its games over, downs and revives have run without it.
-  const asserts = find(module, 'Assert_MyHandler(char const*, int, int, char const*, ...)', (list, k) => list[k].op === 0x00 && list[k + 1]?.op === 0x0b && k + 2 === list.length, 1);
-  const frameSize = asserts.list.find(ins => ins.op === 0x41)!.value!;
-  const frameBase = asserts.list.find(ins => ins.op === 0x22)!.index!;
-  const [u] = asserts.found;
-  add(asserts.index, { at: asserts.list[u].at, end: asserts.list[u].end, bytes: [...get(frameBase), ...i32(frameSize), 0x6a, 0x24, ...leb(0), ...i32(1)] });
-
   // An effect without a material on the joining player: a read at address 176, then unreachable; the caller skips the draw on 0.
   const technique = find(module, 'Material_GetTechnique(Material const*, unsigned char)', (list, k) => list[k].op === 0x00 && k + 2 === list.length, 1);
   const techniqueFrame = technique.list.find(ins => ins.op === 0x41)!.value!;
