@@ -126,9 +126,9 @@ function withString(module: KisakModule, text: string, use: (address: number) =>
 
 type EngineOptions = {
   canvas: HTMLCanvasElement; size: { width: number; height: number }; base: string; zone: string; opfsRoot: string; packBase: string; programsUrl: string;
-  master: number; arguments: string[]; streams: Stream[]; gate: PackGate; intro: Intro | null; introCovering: () => boolean;
+  master: number; arguments: string[]; name: string; join: Promise<string | null>; streams: Stream[]; gate: PackGate; intro: Intro | null; introCovering: () => boolean;
   net: { shared: Shared; forward: (packet: Uint8Array<ArrayBuffer>) => void };
-  onReady: () => void; onQuit: () => void; onCrash: (message: string, detail: CrashDetail) => void; onRelock: () => void; onPrimed: () => void;
+  onReady: () => void; onQuit: () => void; onCrash: (message: string, detail: CrashDetail) => void; onRelock: () => void;
   report: (source: string, message: string) => void;
 };
 
@@ -247,8 +247,6 @@ export function createEngine(options: EngineOptions) {
     if (/KISAK_BROWSER engine-initialized/.test(message)) timings.engineInitialized = performance.now();
     if (/KISAK_BROWSER intro-hold/.test(message)) timings.introHeld ??= performance.now();
     if (/KISAK_BROWSER first-present/.test(message)) timings.firstPresent = performance.now();
-    // Printed by a client that received a server's game state (CL_RestartCGame); a local game never prints it.
-    if (message.startsWith('Setting state to CA_PRIMED')) options.onPrimed();
     const zoneLoaded = /Loaded fastfile '([^']+)'/.exec(message);
     if (zoneLoaded) {
       zones.add(zoneLoaded[1]);
@@ -366,6 +364,7 @@ export function createEngine(options: EngineOptions) {
     }, 8);
     const { renderer, reason, pipeline } = await rendererChoice();
     Object.assign(diagnostics, { renderer: renderer === 'webgpu' ? 'webgpu-pending' : 'webgl2', rendererRequested: renderer, rendererReason: reason, rendererDetail: null });
+    const join = await options.join;
     // Dvars precede +devmap so that startup receives the player's settings.
     const args = [
       '+set', 'fs_b', options.opfsRoot, '+set', 'fs_h', '/opfs/user',
@@ -382,9 +381,12 @@ export function createEngine(options: EngineOptions) {
       '+set', 'sensitivity', String(settings.sensitivity), '+set', 'snd_menu_master', String(settings.volume),
       '+set', 'r_customMode', `${canvas.width}x${canvas.height}`,
       ...options.arguments,
-      // monkeytoy 1, the game's default, closes the console: the network sends name and connect through it.
+      // monkeytoy 1, the game's default, closes the console, which the page's commands go through.
       '+set', 'monkeytoy', '0',
-      '+devmap', zone,
+      // Before +connect, so that the connection request carries the player's name.
+      ...(options.name ? ['+set', 'name', options.name] : []),
+      // A guest loads no map of its own: the host's game state brings it.
+      ...(join ? ['+connect', join] : ['+devmap', zone]),
     ];
     await options.gate.open(engine);
     diagnostics.timings.callMain = performance.now();

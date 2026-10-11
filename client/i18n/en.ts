@@ -92,8 +92,6 @@ export default {
     parts: { shaders: 'Shaders', sounds: 'Sounds', textures: 'Textures', music: 'Music and voices', map: 'Map and models', engine: 'Engine' },
     links: { relay: 'connected through the relay (a little more latency)', ok: 'direct link', wait: 'connecting' },
     enter: 'Click or press any key to enter',
-    joining: 'Joining the host’s game…',
-    waitingLink: 'Waiting for the link with {host}…',
     mouseRefused: 'The mouse could not be captured.',
     clickAgain: 'Click the screen once more.',
     theHost: 'the host',

@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { BASE, hiddenRoom, horde, map, room } from '../game/pack.ts';
 import { enter, type Failure, retry, view } from '../game/session.ts';
 import { HOST } from '../net/lan.ts';
-import { link, linkPending, role } from '../net/link.ts';
+import { link, role } from '../net/link.ts';
 
 type Problem = { title: string; text: string; hint?: string; primary?: [string, () => void]; report?: boolean };
 
@@ -64,12 +64,11 @@ const problem = computed<Problem | null>(() => {
 });
 const guest = computed(() => role() === 'guest');
 const party = computed(() => link.members.map(({ label, pseudo }) => ({ label, pseudo, me: label === link.label, dot: label === HOST && guest.value })));
-const waiting = computed(() => view.screen === 'playing' && guest.value && !link.joined);
-const gone = computed(() => !problem.value && view.screen === 'playing' && !waiting.value);
+const gone = computed(() => !problem.value && view.screen === 'playing');
 const full = computed(() => view.screen === 'ready' || view.screen === 'playing');
 const parts = computed(() => !Object.keys(view.groups).length ? [] : PARTS.filter(key => key === 'engine' || view.groups[key]).map(key => {
   const [done, size] = view.groups[key] ?? [0, 1];
-  return { key, pct: full.value ? 100 : Math.floor(100 * (key === 'engine' ? view.engine : done / size)), wait: key === 'engine' && waiting.value };
+  return { key, pct: full.value ? 100 : Math.floor(100 * (key === 'engine' ? view.engine : done / size)) };
 }));
 const status = computed(() => t(full.value ? 'load.ready' : view.screen === 'loading' ? 'load.engine' : 'load.downloading'));
 const eta = computed(() => {
@@ -77,7 +76,6 @@ const eta = computed(() => {
   if (view.eta < 8) return t('load.almostDone');
   return view.eta < 60 ? t('load.seconds', { n: Math.max(5, Math.round(view.eta / 5) * 5) }) : t('load.minutes', { n: Math.round(view.eta / 60) });
 });
-const prompt = computed(() => (waiting.value ? t('load.joining') : linkPending() ? t('load.waitingLink', { host: host.value }) : t('load.enter')));
 const dot = computed(() => (link.relayed ? 'relay' : link.linked ? 'ok' : 'wait'));
 
 async function copy() {
@@ -109,11 +107,11 @@ onUnmounted(() => clearInterval(tips));
       </div>
       <div class="kb-status"><i :class="full ? 'kb-ok' : ''"></i><span>{{ status }}</span><small>{{ eta }}</small></div>
       <div class="kb-timeline">
-        <div v-for="part in parts" :key="part.key" :class="['kb-part', part.pct >= 100 ? 'done' : part.pct > 0 ? 'now' : 'wait', { 'kb-wait': part.wait }]">
+        <div v-for="part in parts" :key="part.key" :class="['kb-part', part.pct >= 100 ? 'done' : part.pct > 0 ? 'now' : 'wait']">
           <div class="kb-track"><i :style="{ width: `${part.pct}%` }"></i></div><span>{{ $t(`load.parts.${part.key}`) }}<em>{{ part.pct > 0 && part.pct < 100 ? $n(part.pct / 100, { style: 'percent' }) : '' }}</em></span>
         </div>
       </div>
-      <p :class="['kb-prompt', { 'kb-off': !(view.screen === 'ready' || waiting) }]">{{ prompt }}</p>
+      <p :class="['kb-prompt', { 'kb-off': view.screen !== 'ready' }]">{{ $t('load.enter') }}</p>
       <p class="kb-note" :hidden="!(view.screen === 'ready' && view.declined)"><b>{{ $t('load.mouseRefused') }}</b> {{ $t('load.clickAgain') }}</p>
       <div class="kb-error" :hidden="!problem">
         <h3><span class="kb-warn">!</span><span class="kb-error-title">{{ problem?.title }}</span></h3><p class="kb-error-text">{{ problem?.text }}</p><p class="kb-error-hint">{{ problem?.hint ?? '' }}</p>

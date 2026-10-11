@@ -4,10 +4,8 @@ import { MAILBOX_BYTES, post, push, RING_BYTES, SLOT_DATA, SOCKS } from './ring.
 
 // A direct link opens in about a second: after 5 s, the guest goes through the server's relay.
 const RELAY_AFTER = 5000;
-// After 30 s without a link, the guest would be playing alone without knowing it.
+// After 30 s without a link, the guest's engine would wait for the host's game forever.
 const LINK_TIMEOUT = 30000;
-// After 2 minutes without the host's game, the guest's own game shows rather than an endless wait.
-const JOIN_GIVE_UP = 120000;
 
 type Transport = (packet: Uint8Array<ArrayBuffer>) => boolean;
 type Message =
@@ -18,20 +16,15 @@ type Message =
 export type Member = { label: string; pseudo: string };
 export type RoomFailure = 'signal' | 'host-left' | 'unreachable';
 
-export const link = shallowReactive({ label: '', linked: false, relayed: false, joined: false, failure: null as RoomFailure | null, members: [] as Member[] });
+export const link = shallowReactive({ label: '', linked: false, relayed: false, failure: null as RoomFailure | null, members: [] as Member[] });
 export const traffic = { sent: 0, received: 0, dropped: 0 };
 export let shared: Shared;
 
 let transport: Transport;
-let roomName: string | null = null;
-let playing = false;
-let joining = false;
+let joinTarget: (address: string | null) => void;
 const commands: string[] = [];
-const onPlaying: (() => boolean)[] = [];
 
 export const role = () => (link.label ? (link.label === HOST ? 'host' : 'guest') : null);
-// A guest does not enter without a link to the host: it would load its own game, alone.
-export const linkPending = () => Boolean(roomName) && role() !== 'host' && !link.linked;
 
 export function command(text: string) {
   commands.push(text);
@@ -43,9 +36,8 @@ export function forward(packet: Uint8Array<ArrayBuffer>) {
 }
 
 // Room host, guest, or a local game another player just joined over the UDP bridge: the game's pause no longer freezes the host.
-// Only from solo: every received datagram comes through here, and must not wake a guest's sleeping server (2).
 function markMultiplayer() {
-  Atomics.compareExchange(new Int32Array(shared.multi), 0, 0, 1);
+  Atomics.store(new Int32Array(shared.multi), 0, 1);
 }
 
 // The server receives on NS_SERVER what a client sends from NS_CLIENT1, and the other way round.
@@ -63,22 +55,12 @@ const socketUrl = (pathname: string, query: Record<string, string> = {}) => {
   return url;
 };
 
-function pseudo() {
+export function pseudo() {
   try {
     return (localStorage.getItem('bo1z-name') ?? '').replace(/[^\w-]/g, '').slice(0, 15);
   } catch {
     return '';
   }
-}
-
-// The server renames duplicates "Unknown Soldier 1": name goes before connect so that the connection request carries it.
-// Joining from the already loaded local game: connecting at startup read the initial state wrong.
-function whenPlaying(ready: () => boolean, ...texts: string[]) {
-  onPlaying.push(() => {
-    if (!ready()) return false;
-    for (const text of [...(pseudo() ? [`name ${pseudo()}`] : []), ...texts]) command(text);
-    return true;
-  });
 }
 
 function relay(): Transport {
@@ -133,14 +115,14 @@ function room(name: string, hidden: boolean, map: string): Transport {
     if (message.type === 'welcome') {
       iceServers = message.iceServers;
       link.label = message.you;
-      if (message.you === HOST) return whenPlaying(() => true);
+      joinTarget(message.you === HOST ? null : HOST);
+      if (message.you === HOST) return;
       const { connection } = peer(HOST);
       attach(HOST, connection.createDataChannel('kbnet', { ordered: false, maxRetransmits: 0 }));
       await connection.setLocalDescription();
       tell(HOST, { description: connection.localDescription });
       setTimeout(askRelay, RELAY_AFTER);
       setTimeout(() => { if (!link.linked && !link.failure) link.failure = 'unreachable'; }, LINK_TIMEOUT);
-      whenPlaying(() => link.linked, `connect ${HOST}`);
     } else if (message.type === 'signal') {
       const entry = peer(message.from);
       const { description, candidate, relay } = message.data;
@@ -187,35 +169,18 @@ function room(name: string, hidden: boolean, map: string): Transport {
   };
 }
 
+// Resolves to the address the engine connects to at startup, or null for a local game: a room's guest learns it is one on arrival.
 export function start(options: { room: string | null; hidden: boolean; map: string; connect: string | null }) {
   shared = { rings: new SharedArrayBuffer(RING_BYTES), mailbox: new SharedArrayBuffer(MAILBOX_BYTES), multi: new SharedArrayBuffer(4) };
-  roomName = options.room;
   setInterval(() => {
     if (commands.length && post(shared.mailbox, new TextEncoder().encode(`${commands[0]}\n`))) commands.shift();
   }, 50);
-  setInterval(() => {
-    if (playing) for (let k = onPlaying.length - 1; k >= 0; k--) if (onPlaying[k]()) onPlaying.splice(k, 1);
-  }, 500);
-  joining = Boolean(options.connect);
   if (options.room || options.connect) markMultiplayer();
+  const target = new Promise<string | null>(resolve => { joinTarget = resolve; });
   if (options.room) transport = room(options.room, options.hidden, options.map);
   else {
     transport = relay();
-    whenPlaying(() => true, ...(options.connect ? [`connect ${options.connect}`] : []));
+    joinTarget(options.connect);
   }
-}
-
-// The local game is running: name and connect go out once their condition holds.
-export function enteredGame() {
-  if (playing) return;
-  playing = true;
-  if (role() === 'guest') setTimeout(() => { link.joined = true; }, JOIN_GIVE_UP);
-  else link.joined = true;
-}
-
-// The guest's engine has the host's game state: the host's world is what it draws now.
-export function hostGameLoaded() {
-  if (!playing) return;
-  link.joined = true;
-  if (role() === 'guest' || joining) Atomics.store(new Int32Array(shared.multi), 0, 2);
+  return target;
 }

@@ -42,12 +42,10 @@ body { margin: 0; min-height: 100vh; overflow: hidden; text-shadow: 0 0 4px #000
 .kb-track i { display: block; height: 100%; width: 0; background: var(--amber); transition: width .3s; }
 .kb-part:last-child .kb-track i { background: linear-gradient(90deg, var(--blood), var(--amber)); box-shadow: 0 0 12px rgba(230, 168, 59, .6); }
 .kb-part.done .kb-track i { background: var(--blood-hot); }
-.kb-part.kb-wait .kb-track i { width: 30% !important; transition: none; animation: kb-slide 1.4s ease-in-out infinite; }
 .kb-part span { font: 600 12px var(--ui); letter-spacing: .05em; color: var(--faint); white-space: nowrap; }
 .kb-part.now span { color: var(--ink); }
 .kb-part.done span { color: var(--muted); }
 .kb-part em { display: inline-block; min-width: 2.8em; font-style: normal; margin-left: 4px; color: var(--muted); }
-@keyframes kb-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
 .kb-prompt { margin: 0 0 14px; font: 600 20px var(--ui); letter-spacing: .14em; text-transform: uppercase; color: var(--amber); animation: kb-pulse 1.4s ease-in-out infinite; }
 .kb-prompt.kb-off { visibility: hidden; }
 @keyframes kb-pulse { 50% { opacity: .45; } }

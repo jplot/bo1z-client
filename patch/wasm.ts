@@ -6,6 +6,7 @@ const EXPORT = 7;
 const START = 8;
 const ELEMENT = 9;
 const CODE = 10;
+const DATA = 11;
 
 export type Section = { id: number; head: number; start: number; end: number };
 export type Body = { head: number; start: number; code: number; end: number };
@@ -247,6 +248,42 @@ export function parse(bytes: Uint8Array) {
     }
   }
   return module;
+}
+
+// A threaded build keeps its data in passive segments, which __wasm_init_memory copies to fixed addresses.
+function dataSegments(module: Module) {
+  const { bytes } = module;
+  const r = new Reader(bytes, module.sections.find(s => s.id === DATA)!.start);
+  const segments: { start: number; end: number }[] = [];
+  for (let count = r.u32(), i = 0; i < count; i++) {
+    const flags = r.u32();
+    if (flags !== 1) throw new Error(`data segment ${i} is not passive`);
+    const length = r.u32();
+    segments.push({ start: r.pos, end: r.pos + length });
+    r.pos += length;
+  }
+  const init = module.bodies[module.names.get('__wasm_init_memory')! - module.importedFuncs];
+  const list = [...instructions(bytes, init.code, init.end)];
+  return list.flatMap((ins, k) => (ins.op === 0xfc && ins.sub === 8
+    ? [{ address: list[k - 3].value!, ...segments[new Reader(bytes, ins.at + 2).u32()] }] : []));
+}
+
+export function stringAddress(module: Module, text: string) {
+  const { bytes } = module;
+  const needle = new TextEncoder().encode(`${text}\0`);
+  for (const { address, start, end } of dataSegments(module)) {
+    for (let at = start; at + needle.length <= end; at++) {
+      if (needle.every((byte, j) => bytes[at + j] === byte)) return address + at - start;
+    }
+  }
+  throw new Error(`missing string: ${text}`);
+}
+
+export function stringAt(module: Module, address: number) {
+  const segment = dataSegments(module).find(s => address >= s.address && address < s.address + s.end - s.start);
+  if (!segment) return null;
+  const start = segment.start + address - segment.address;
+  return new TextDecoder().decode(module.bytes.subarray(start, module.bytes.indexOf(0, start)));
 }
 
 class Writer {

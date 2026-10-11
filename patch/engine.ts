@@ -1,4 +1,4 @@
-import { type Edit, type Import, type Instruction, instructions, leb, type Module, parse, rebuild, sleb } from './wasm.ts';
+import { type Edit, type Import, type Instruction, instructions, leb, type Module, parse, rebuild, sleb, stringAddress, stringAt } from './wasm.ts';
 
 const I32 = 0x7f;
 const IMPORTS: Import[] = [
@@ -82,19 +82,93 @@ function patches(module: Module) {
   // (20 >> type) & 1: bits 2 (NA_LOOPBACK) and 4 (NA_IP).
   add(connect.index, { at: connect.list[c].at, end: connect.list[c + 4].at, bytes: [...i32(20), ...loadType, 0x76, ...i32(1), 0x71] });
 
+  // A guest connects from its command line: the front end's "map frontend" would drop that connection (CA_CONNECTING = 4).
+  const setState = find(module, 'CL_SetLocalClientConnectionState(int, connstate_t)', (_, k) => k === 0, 1);
+  const connectionState = setState.list.find((ins, k) => ins.op === 0x41 && setState.list[k + 1]?.op === 0x20 && setState.list[k + 2]?.op === 0x36)!.value!;
+  const frontEnd = module.names.get('Com_LoadFrontEnd()');
+  const startup = find(module, 'main', (list, k) => list[k].op === 0x10 && list[k].index === frontEnd, 1);
+  const [s] = startup.found;
+  add(startup.index, { at: startup.list[s].at, end: startup.list[s].end,
+    bytes: [...i32(connectionState), 0x28, 0x02, 0x00, ...i32(4), 0x48, 0x04, 0x40, ...callDefined(module, 'Com_LoadFrontEnd()'), 0x0b] });
+
+  // zombiemode picks the entity field tables: a guest, with no map loaded, takes it from the host's map name before the
+  // baselines, as Com_LoadLevelFastFiles does from the same name on the host.
+  const strncmp = module.names.get('I_strncmp(char const*, char const*, int)');
+  const modeSet = find(module, 'Com_LoadLevelFastFiles(char*)', (list, k) => list[k].op === 0x41 && list[k + 1]?.op === 0x28
+    && list[k + 3]?.op === 0x04 && list[k + 9]?.op === 0x10 && list[k + 9].index === strncmp, 1);
+  const zombiemode = modeSet.list[modeSet.found[0]].value!;
+  const readString = module.names.get('MSG_ReadString(msg_t*, char*, unsigned int)');
+  const gamestate = find(module, 'CL_ParseGamestate(int, msg_t*)', (list, k) => list[k].op === 0x10 && list[k].index === readString && list[k - 2]?.op === 0x22, 2);
+  const [m] = gamestate.found;
+  add(gamestate.index, { at: gamestate.list[m + 1].end, end: gamestate.list[m + 1].end, bytes: [...i32(zombiemode), 0x28, 0x02, 0x00,
+    ...get(gamestate.list[m - 2].index!), ...callDefined(module, 'Com_IsZombieMap(char const*)'), ...i32(0), ...callDefined(module, 'Dvar_SetBoolFromSource(dvar_s*, bool, DvarSetSource)')] });
+
+  // Without a local server, a client compiles the server scripts for their anim trees, whose order and anims the
+  // network refers to by index: in zombies, the host's list (G_InitGame) instead of MP's gametype and level scripts.
+  const text = (value: string) => i32(stringAddress(module, value));
+  const call = (name: string) => callDefined(module, name);
+  const LOAD = 'Scr_LoadScript(scriptInstance_t, char*)', SPAWN_STRING = 'G_SpawnString(SpawnVar const*, char const*, char const*, char const**)';
+  const parseSpawnVars = module.names.get('G_ParseSpawnVars(SpawnVar*)');
+  const entities = find(module, 'G_InitGame(int, int, int, int, bool, SPSaveGame**)', (list, k) => list[k].op === 0x41
+    && list[k + 1]?.op === 0x10 && list[k + 1].index === parseSpawnVars && list[k + 3]?.op === 0x03 && stringAt(module, list[k + 16]?.value ?? 0) === 'actor_', 1);
+  const spawnVar = entities.list[entities.found[0]].value!;
+  const findTree = module.names.get('Scr_FindAnimTree(scriptInstance_t, char const*)');
+  const actorTree = find(module, 'G_InitGame(int, int, int, int, bool, SPSaveGame**)', (list, k) => list[k].op === 0x41
+    && list[k + 2]?.op === 0x10 && list[k + 2].index === findTree, 1);
+  const actorAnims = actorTree.list[actorTree.found[0]].value!;
+  // Frame of the inlined CGScr_LoadScripts: $2 = 112 bytes (va args at 0, file name at 32), $3 = mapname, $4 = file name.
+  const slot = (offset: number) => [...get(2), 0x28, 0x02, ...leb(offset)];
+  const loadFile = (file: string) => [...i32(0), ...text(file), ...call(LOAD), 0x1a];
+  const loadFormatted = (format: string, arg: number[]) => [...get(2), ...arg, 0x36, 0x02, 0x00,
+    ...get(4), ...i32(64), ...text(format), ...get(2), ...call('Com_sprintf(char*, unsigned int, char const*, ...)'), 0x1a,
+    ...i32(0), ...get(4), ...call(LOAD), 0x1a];
+  const ANIMSCRIPTS = ['zombie_combat', 'zombie_death', 'zombie_init', 'zombie_pain', 'zombie_move', 'zombie_scripted', 'zombie_stop',
+    'zombie_dog_combat', 'zombie_dog_death', 'zombie_dog_init', 'zombie_dog_pain', 'zombie_dog_move', 'zombie_dog_scripted',
+    'zombie_dog_stop', 'zombie_dog_flashed', 'zombie_dog_turn'];
+  const loadLabel = module.names.get('CGScr_LoadScriptAndLabel(scriptInstance_t, char const*, char const*, ScriptFunctions*)');
+  const complete = find(module, 'CL_DownloadsComplete(int)', (list, k) => list[k].op === 0x41 && list[k].value === 0
+    && list[k + 1]?.op === 0x41 && stringAt(module, list[k + 1].value!) === 'maps/mp/_destructible' && list[k + 4]?.op === 0x10 && list[k + 4].index === loadLabel, 1);
+  const [d] = complete.found;
+  const levelScript = complete.list.flatMap((ins, k) => (k > d && ins.op === 0x10 && ins.index === loadLabel ? [k] : []))[3];
+  add(complete.index, { at: complete.list[d].at, end: complete.list[d].at, bytes: [
+    ...call('Com_IsSPLevel()'), 0x04, 0x40,
+    ...get(2), ...i32(32), 0x6a, 0x21, ...leb(4),
+    ...loadFile('maps/_callbacksetup'), ...loadFile('maps/_destructible'),
+    ...ANIMSCRIPTS.flatMap(name => loadFormatted('animscripts/%s', text(name))),
+    ...loadFormatted('maps/%s', get(3)),
+    ...call('G_ResetEntityParsePoint()'),
+    0x02, 0x40, 0x03, 0x40,
+    ...i32(spawnVar), ...call('G_ParseSpawnVars(SpawnVar*)'), 0x45, 0x0d, ...leb(1),
+    ...i32(spawnVar), ...text('classname'), ...text(''), ...get(2), ...i32(96), 0x6a, ...call(SPAWN_STRING), 0x1a,
+    ...slot(96), ...text('actor_'), ...i32(6), ...call('strncmp'), 0x45,
+    0x04, 0x40, ...loadFormatted('aitype/%s', [...slot(96), ...i32(6), 0x6a]),
+    0x05, ...slot(96), ...text('node_negotiation_begin'), ...call('I_stricmp(char const*, char const*)'), 0x45,
+    0x04, 0x40, ...i32(spawnVar), ...text('animscript'), ...text(''), ...get(2), ...i32(100), 0x6a, ...call(SPAWN_STRING), 0x1a,
+    ...slot(100), 0x2d, 0x00, 0x00, 0x04, 0x40, ...loadFormatted('animscripts/traverse/%s', slot(100)), 0x0b,
+    0x0b, 0x0b,
+    0x0c, ...leb(0), 0x0b, 0x0b,
+    0x05,
+  ] });
+  add(complete.index, { at: complete.list[levelScript].end, end: complete.list[levelScript].end, bytes: [0x0b] });
+  // The zombies' tree, which the host takes from its own scripts (G_SP_FindActorAnimTree), before the trees close.
+  const loadAnim = module.names.get('BG_LoadAnim(char const*)');
+  const anim = complete.list.findIndex((ins, k) => k > levelScript && ins.op === 0x10 && ins.index === loadAnim);
+  add(complete.index, { at: complete.list[anim].end, end: complete.list[anim].end, bytes: [...call('Com_IsSPLevel()'), 0x04, 0x40,
+    ...i32(actorAnims), ...text('generic_human'), ...call('Scr_FindAnimTree(scriptInstance_t, char const*)'), 0x36, 0x02, 0x00, 0x0b] });
+  // Freeing those scripts empties the list, which MP no longer reads but zombies does (Scr_GetClientAnims): its count
+  // survives the free, its trees live in the level's hunk.
+  const clientAnims = find(module, 'Scr_GetClientAnims(unsigned int, scriptInstance_t)', (list, k) => list[k].op === 0x41
+    && list[k - 1]?.op === 0x22 && list[k + 1]?.op === 0x6a && list[k + 2]?.op === 0x28, 1);
+  const clientTrees = clientAnims.list[clientAnims.found[0]].value!;
+  const freeScripts = module.names.get('Scr_FreeScripts(scriptInstance_t, unsigned char)');
+  const free = complete.list.findIndex((ins, k) => ins.op === 0x10 && ins.index === freeScripts && complete.list[k - 1].op === 0x41);
+  add(complete.index, { at: complete.list[free - 1].at, end: complete.list[free - 1].at, bytes: [...i32(clientTrees), ...i32(clientTrees), 0x28, 0x02, 0x00] });
+  add(complete.index, { at: complete.list[free].end, end: complete.list[free].end, bytes: [...i32(0), ...call('Com_IsSPLevel()'), 0x1b, 0x36, 0x02, 0x00] });
+
   // In multiplayer, neither a menu (CL_PauseGame) nor the page's intro hold (cl_paused) may freeze the host: inlined
   // SV_CheckPaused left a joining player's challenge unanswered. In solo, the game's pause stays.
   const pause = find(module, 'CL_PauseGame(bool)', (_, k) => k === 0, 1);
   add(pause.index, { at: pause.body.code, end: pause.body.code, bytes: [...multiplayer, 0x04, 0x40, ...i32(0), 0x21, ...leb(0), 0x0b] });
-
-  const clPaused = pause.list.find((ins, k) => ins.op === 0x41 && pause.list[k + 1]?.op === 0x28)!.value;
-  const pausedSkip = (list: Instruction[], k: number) => list[k].op === 0x41 && list[k].value === clPaused && list[k + 1]?.op === 0x28
-    && list[k + 2]?.op === 0x28 && list[k + 2].offset === 24 && list[k + 3]?.op === 0x45 && list[k + 4]?.op === 0x0d && list[k + 4].index === 0;
-  // A guest on the host's server (multiplayer 2) keeps the local server its client draws on, but takes the pause path.
-  const frame = find(module, '__wrap__Z8SV_Frameii', pausedSkip, 1);
-  const [f] = frame.found;
-  add(frame.index, { at: frame.list[f + 3].end, end: frame.list[f + 3].end,
-    bytes: [...multiplayer, ...i32(1), 0x46, 0x72, ...multiplayer, ...i32(2), 0x47, 0x71] });
 
   // Escape during the load that follows connect (no connection nor game yet) raised
   // Com_Error(ERR_DISCONNECT, "Bad server address"): the joining player's game stopped 0.5 s after connect.

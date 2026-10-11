@@ -35,6 +35,7 @@ let downloader: Worker | null = null, idle: Worker | null = null, engine: Engine
 let manifest: Manifest | null = null, cache: Extract<Reply, { type: 'cache-status' }> | null = null, want: string[] = [];
 let downloading = false, booted = false, entering = false, quitting = false;
 let loadbar: ReturnType<typeof createLoadbar> | null = null;
+let joinTarget: Promise<string | null>;
 let master = LOAD_VOLUME;
 
 export const currentEngine = () => engine;
@@ -166,10 +167,9 @@ async function loadEngine() {
   }
   engine = createEngine({
     canvas, size, base: BASE, zone: map.zone, opfsRoot, packBase, programsUrl, master,
-    arguments: horde ? hordeArguments(settings.horde) : [], streams: manifest!.streams ?? [], gate, intro: currentIntro(), introCovering,
+    arguments: horde ? hordeArguments(settings.horde) : [], name: net.pseudo(), join: joinTarget, streams: manifest!.streams ?? [], gate, intro: currentIntro(), introCovering,
     net: { shared: net.shared, forward: net.forward },
     onReady: ready, onQuit: quit, onCrash: crash, onRelock: () => { if (view.screen === 'playing') engine!.lock().catch(() => {}); },
-    onPrimed: net.hostGameLoaded,
     report: (source, message) => telemetry.error(source, message),
   });
   try {
@@ -198,7 +198,7 @@ function lockEscape() {
 
 // Fullscreen, mouse and sound must come from the same gesture: everything is requested before the first await.
 export function enter() {
-  if (view.screen !== 'ready' || entering || !engine || net.linkPending() || net.link.failure) return;
+  if (view.screen !== 'ready' || entering || !engine || net.link.failure) return;
   entering = true;
   view.declined = false;
   const full = settings.fullscreen && !document.fullscreenElement ? document.documentElement.requestFullscreen().then(lockEscape, () => {}) : Promise.resolve();
@@ -207,7 +207,6 @@ export function enter() {
     if (document.pointerLockElement !== canvas) throw new Error('The mouse was not captured.');
     show('playing');
     diagnostics.timings.playing = performance.now();
-    net.enteredGame();
     if (currentIntro()?.started) finishIntro('skip');
     videoMaster(Math.min(1, settings.volume));
   }).catch(() => {
@@ -304,6 +303,6 @@ export async function startSession(game: HTMLCanvasElement) {
     diagnostics.errors.push((error as Error).message);
     return fail({ kind: 'browser' });
   }
-  net.start({ room, hidden: hiddenRoom, map: map.slug, connect: connectTo });
+  joinTarget = net.start({ room, hidden: hiddenRoom, map: map.slug, connect: connectTo });
   inspect();
 }
