@@ -9,7 +9,7 @@ Call of Duty: Black Ops zombies in the browser, solo or with up to four players.
 - `engine/`: the engine, KisakBlack (C++, GPL-3.0) compiled to WebAssembly by vel.gg, and its generated JavaScript glue, edited by hand where the page hooks into it.
   Its native code reads in [SwagSoftware/KisakBlack](https://github.com/SwagSoftware/KisakBlack) and, for the zombies, single-player and mod parts, [MisaDev4/bo1-zombies-decompiled](https://github.com/MisaDev4/bo1-zombies-decompiled). vel.gg's web layer (`websys`, `webd3d`, `websound`) is not published.
   The game's Direct3D 9 shaders come translated ahead of time, by [MojoShader](https://github.com/icculus/mojoshader) into GLSL ES for WebGL 2, then by [Naga](https://github.com/gfx-rs/wgpu/tree/trunk/naga) into WGSL for WebGPU; they ship with each map's data (`pack/web/shaders/`, `artifacts/<map>-pipelines.json`) and cannot be rebuilt from this repository.
-- `patch/`: the patches applied to the wasm at build time (networking through the page, no pause for a multiplayer host, a guest joining with no map or server of its own, the mod's script run after the map's, crash guards, no stack trace per collision-tree update), and the rewriter that applies them.
+- `patch/`: the patches applied to the wasm at build time (networking through the page, no pause in multiplayer, a guest joining with no map or server of its own, the mod's script run after the map's, crash guards, no stack trace per collision-tree update), and the rewriter that applies them.
 - `mod/`: game scripts (GSC) the engine reads over the game's own, as the mod `mods/bo1z` (`fs_game`): a player who joins a game already under way is placed near the team and can play.
 
 ## Requirements

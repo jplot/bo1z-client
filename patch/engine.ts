@@ -193,6 +193,14 @@ function patches(module: Module) {
   const pause = find(module, 'CL_PauseGame(bool)', (_, k) => k === 0, 1);
   add(pause.index, { at: pause.body.code, end: pause.body.code, bytes: [...multiplayer, 0x04, 0x40, ...i32(0), 0x21, ...leb(0), 0x0b] });
 
+  // Released (2) at once: held, an armed guest drew MisaDev4's paused gun (CG_AddViewWeapon) from a never-set placement, 450 to 490 asserts in 8 s.
+  const setIntByName = module.names.get('Dvar_SetIntByName(char const*, int)');
+  const hold = find(module, 'BrowserFrame(void*)', (list, k) => list[k].op === 0x41 && list[k + 1]?.op === 0x41 && list[k + 1].value === 1
+    && list[k + 2]?.op === 0x36 && stringAt(module, list[k + 3]?.value ?? 0) === 'cl_paused' && list[k + 4]?.value === 1
+    && list[k + 5]?.op === 0x10 && list[k + 5].index === setIntByName, 1);
+  const [h] = hold.found;
+  add(hold.index, { at: hold.list[h].at, end: hold.list[h].at, bytes: [...multiplayer, 0x04, 0x40, ...i32(hold.list[h].value!), ...i32(2), 0x36, 0x02, 0x00, 0x0c, 0x01, 0x0b] });
+
   // Escape during the load that follows connect (no connection nor game yet) raised
   // Com_Error(ERR_DISCONNECT, "Bad server address"): the joining player's game stopped 0.5 s after connect.
   const comError = module.names.get('Com_Error(errorParm_t, char const*, ...)');
@@ -212,8 +220,7 @@ function patches(module: Module) {
     add(site.index, { at: site.list[r].at, end: site.list[r].end, bytes: [0x1a, ...i32(0)] });
   }
 
-  // Fatal assertions: a lobby triggers some that solo never reaches, even its host alone (Vec4IsNormalized on a zero
-  // quaternion, UnitQuatToAxis from CG_AddPlayerWeapon).
+  // Fatal assertions a lobby still triggers: the host's attachedVehEntNum != 0 for a guest one server frame after connect (1 Moon join in 9).
   const asserts = find(module, 'Assert_MyHandler(char const*, int, int, char const*, ...)', (list, k) => list[k].op === 0x00 && list[k + 1]?.op === 0x0b && k + 2 === list.length, 1);
   const frameSize = asserts.list.find(ins => ins.op === 0x41)!.value!;
   const frameBase = asserts.list.find(ins => ins.op === 0x22)!.index!;
@@ -228,7 +235,7 @@ function patches(module: Module) {
   add(technique.index, { at: technique.body.code, end: technique.body.code, bytes: [...get(0), 0x45, 0x04, 0x40, ...i32(0), 0x0f, 0x0b] });
   add(technique.index, { at: technique.list[t].at, end: technique.list[t].end, bytes: [0x1a, ...get(techniqueBase), ...i32(techniqueFrame), 0x6a, 0x24, ...leb(0), ...i32(0)] });
 
-  // The host has no DObj for a remote player: when downed, its attachment tag raised ERR_DROP and ended the game.
+  // A teammate has no DObj until the zombies script gives it a model (8 s after a map_restart): its overhead name raised ERR_DROP.
   const noDObj = (list: Instruction[], k: number) => list[k].op === 0x41 && list[k].value === 1 && list[k + 1]?.op === 0x41
     && list[k + 2]?.op === 0x41 && list[k + 2].value === 0 && list[k + 3]?.op === 0x10 && list[k + 3].index === comError && list[k + 4]?.op === 0x0b;
   const tag = find(module, 'CachedTag_UpdateTagInternal(centity_s const*, cached_client_tag_t*, unsigned int, int, bool)', noDObj, 1);
