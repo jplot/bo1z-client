@@ -5,6 +5,7 @@ import workletUrl from './audio-worklet.ts?worker&url';
 import { diagnostics } from './diagnostics.ts';
 import { captureInput } from './input.ts';
 import type { Intro } from './intro.ts';
+import { installMod, MOD } from './mod.ts';
 
 type KisakModule = {
   HEAPF32: Float32Array<SharedArrayBuffer>;
@@ -365,9 +366,10 @@ export function createEngine(options: EngineOptions) {
     const { renderer, reason, pipeline } = await rendererChoice();
     Object.assign(diagnostics, { renderer: renderer === 'webgpu' ? 'webgpu-pending' : 'webgl2', rendererRequested: renderer, rendererReason: reason, rendererDetail: null });
     const join = await options.join;
+    await installMod(options.opfsRoot);
     // Dvars precede +devmap so that startup receives the player's settings.
     const args = [
-      '+set', 'fs_b', options.opfsRoot, '+set', 'fs_h', '/opfs/user',
+      '+set', 'fs_b', options.opfsRoot, '+set', 'fs_h', '/opfs/user', '+set', 'fs_game', MOD,
       '+set', 'kisak_zombies', '1', '+set', 'zombiemode', '1',
       '+set', 'kisak_testclient', '0', '+set', 'kisak_scripterrors', '100',
       '+set', 'r_fullscreen', '0', '+set', 'r_aaSamples', '1',

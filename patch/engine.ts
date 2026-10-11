@@ -165,6 +165,29 @@ function patches(module: Module) {
   add(complete.index, { at: complete.list[free - 1].at, end: complete.list[free - 1].at, bytes: [...i32(clientTrees), ...i32(clientTrees), 0x28, 0x02, 0x00] });
   add(complete.index, { at: complete.list[free].end, end: complete.list[free].end, bytes: [...i32(0), ...call('Com_IsSPLevel()'), 0x1b, 0x36, 0x02, 0x00] });
 
+  // The mod's late-join script (mod/, read through fs_game) runs after the level's main from the first slot of an extra
+  // zone's level script (g_modZoneLevelScripts, empty without bo1_mod_zones). Compiled last, so the anim trees keep their order.
+  const zoneName = module.names.get('DB_GetModExtraZoneName(int, char*, int)');
+  const zones = find(module, 'G_InitGame(int, int, int, int, bool, SPSaveGame**)', (list, k) => list[k].op === 0x41 && list[k + 1]?.op === 0x41
+    && list[k + 1].value === 0 && list[k + 2]?.op === 0x36 && list[k + 8]?.op === 0x10 && list[k + 8].index === zoneName, 2);
+  const zoneScript = zones.list[zones.found[0]].value!;
+  const postCompile = module.names.get('Scr_PostCompileScripts(scriptInstance_t)');
+  const compiled = zones.list.findIndex((ins, k) => ins.op === 0x10 && ins.index === postCompile && zones.list[k - 1].op === 0x41);
+  // Its name, which the engine does not hold, goes on the stack.
+  const path = new TextEncoder().encode('maps/bo1z/late_join');
+  const name = new Uint8Array((path.length + 4) & ~3);
+  name.set(path);
+  const words = new DataView(name.buffer);
+  const nameOnStack = [...name].flatMap((_, i) => (i % 4 ? [] : [0x23, 0x00, ...i32(words.getInt32(i, true)), 0x36, 0x02, ...leb(i)]));
+  add(zones.index, { at: zones.list[compiled - 1].at, end: zones.list[compiled - 1].at, bytes: [
+    ...call('Com_IsSPLevel()'), 0x04, 0x40, ...i32(zoneScript), 0x28, 0x02, 0x00, 0x45, 0x04, 0x40,
+    0x23, 0x00, ...i32(32), 0x6b, 0x24, 0x00, ...nameOnStack,
+    ...i32(zoneScript), 0x23, 0x00, ...text('main'), ...i32(0),
+    ...call('GScr_LoadScriptAndLabel(scriptInstance_t, char const*, char const*, int)'), 0x36, 0x02, 0x00,
+    0x23, 0x00, ...i32(32), 0x6a, 0x24, 0x00,
+    0x0b, 0x0b,
+  ] });
+
   // In multiplayer, neither a menu (CL_PauseGame) nor the page's intro hold (cl_paused) may freeze the host: inlined
   // SV_CheckPaused left a joining player's challenge unanswered. In solo, the game's pause stays.
   const pause = find(module, 'CL_PauseGame(bool)', (_, k) => k === 0, 1);

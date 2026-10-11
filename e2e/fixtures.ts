@@ -33,6 +33,13 @@ export async function enter(page: Page, path: string) {
   await play(page);
 }
 
+// The engine's view line, once a second: the player's origin, and pm_flags 0x800 for frozen controls.
+export async function view(page: Page) {
+  const line = await page.evaluate(() => bo1z.diagnostics.console.findLast(row => row.message.startsWith('KISAK_BROWSER view'))?.message ?? '');
+  const [, origin, flags] = /origin=(\S+) .* flags=([0-9a-f]+)/.exec(line) ?? [];
+  return { origin, frozen: (parseInt(flags, 16) & 0x800) !== 0 };
+}
+
 export const loadingGone = (page: Page) => page.waitForFunction(() => document.querySelector('.kb-loading')!.classList.contains('kb-gone'), null, { timeout: 60_000 });
 
 export async function paused(page: Page) {
